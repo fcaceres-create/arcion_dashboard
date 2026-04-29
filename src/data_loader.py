@@ -41,32 +41,68 @@ COLUMNAS_NUMERICAS = [c for c in COLUMNAS_REQUERIDAS
                        if c not in ("Provincia", "Region")]
 
 
+def _sheets_disponible() -> bool:
+    """True si hay un contexto Streamlit con secrets [google_sheets]."""
+    try:
+        import streamlit as st
+        return "google_sheets" in st.secrets
+    except Exception:  # noqa: BLE001
+        return False
+
+
 def cargar_dataset_maestro(ruta: Path | None = None,
                               hoja: str = "Datos") -> pd.DataFrame:
-    """Carga el Excel maestro y valida su integridad.
+    """Carga el dataset maestro y valida su integridad.
+
+    Si no se pasa ``ruta`` explícita y hay un Sheet configurado en los
+    secrets de Streamlit, lee desde Google Sheets. Esto permite que la
+    app desplegada en Cloud (sin acceso al Excel local) funcione contra
+    el mismo backend que edita el admin. Caso contrario lee el Excel
+    local en ``data/raw/``.
 
     Args:
-        ruta: Path del archivo. Por defecto usa config.
-        hoja: Nombre de la hoja. Por defecto 'Datos'.
+        ruta: Path del archivo Excel. Si se pasa, fuerza el uso del
+            backend local y se ignora Sheets.
+        hoja: Nombre de la pestaña / hoja. Por defecto 'Datos'.
 
     Returns:
         DataFrame validado con tipos correctos.
 
     Raises:
-        FileNotFoundError: Si el archivo no existe.
+        FileNotFoundError: Si no hay backend disponible (ni Sheets ni Excel).
         ValueError: Si faltan columnas requeridas.
-
-    Ejemplo:
-        >>> df = cargar_dataset_maestro()
-        >>> df["Provincia"].nunique()
-        24
     """
+    if ruta is None and _sheets_disponible():
+        try:
+            from src.sheets_io import leer_hoja
+            log.info("Cargando dataset desde Google Sheets | hoja=%s", hoja)
+            df = leer_hoja(hoja)
+            if df.empty:
+                raise RuntimeError(
+                    f"La hoja '{hoja}' del Sheet está vacía. Inicializala "
+                    f"desde la página Editor."
+                )
+            validar_columnas(df, COLUMNAS_REQUERIDAS,
+                              contexto=f"Sheets/{hoja}")
+            for col in COLUMNAS_NUMERICAS:
+                df[col] = pd.to_numeric(df[col], errors="coerce")
+            df["Año"] = df["Año"].astype(int)
+            log.info("Dataset cargado desde Sheets | %s",
+                      resumen_dataframe(df))
+            return df
+        except Exception as exc:  # noqa: BLE001
+            log.warning(
+                "Falló lectura desde Google Sheets (%s). Intentando Excel local.",
+                exc,
+            )
+
     ruta = ruta or config.ARCHIVO_DATASET_MAESTRO
 
     if not ruta.exists():
         raise FileNotFoundError(
             f"No se encontró el dataset maestro en {ruta}. "
-            f"Ejecutá `python -m src.data_generator` o el pipeline completo."
+            f"Ejecutá `python -m src.data_generator`, el pipeline completo, "
+            f"o configurá los secrets [google_sheets] para leer del Sheet."
         )
 
     log.info("Cargando dataset desde %s | hoja=%s", ruta.name, hoja)
@@ -77,11 +113,9 @@ def cargar_dataset_maestro(ruta: Path | None = None,
 
     validar_columnas(df, COLUMNAS_REQUERIDAS, contexto=f"{ruta.name}/{hoja}")
 
-    # Conversión defensiva de tipos numéricos
     for col in COLUMNAS_NUMERICAS:
         df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # Año debe ser entero
     df["Año"] = df["Año"].astype(int)
 
     log.info("Dataset cargado | %s", resumen_dataframe(df))
