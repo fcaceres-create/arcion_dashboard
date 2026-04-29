@@ -39,6 +39,103 @@ st.markdown(
 )
 
 # ---------------------------------------------------------------------
+# Clasificación de variables (curada manualmente)
+# ---------------------------------------------------------------------
+st.subheader("🗂️ Clasificación por origen de cada variable")
+st.caption(
+    "Mapa explícito de qué viene de APIs oficiales, qué es sintético "
+    "calibrado a fuentes reales (INDEC, OPS) y qué requiere ser "
+    "reemplazado cuando lleguen los datos del Plan Nacional de Sangre."
+)
+
+CLASIFICACION_VARIABLES = pd.DataFrame([
+    # 🟢 REALES (vienen de API)
+    {"Variable": "Centros_Hemoterapia", "Estado": "🟢 Real",
+      "Cobertura": "54,7 %",
+      "Fuente": "REFES (datos.salud.gob.ar) — API CKAN"},
+    {"Variable": "Casos_Dengue_Anual", "Estado": "🟢 Real",
+      "Cobertura": "31,8 %",
+      "Fuente": "Vigilancia Min. Salud — API CKAN"},
+    {"Variable": "Casos_VIH_Anual", "Estado": "🟢 Real",
+      "Cobertura": "62,5 %",
+      "Fuente": "Plan VIH/SIDA Min. Salud — API CKAN"},
+    {"Variable": "Medicos", "Estado": "🟢 Real",
+      "Cobertura": "100 %",
+      "Fuente": "MinSalud RRHH — snapshot 2019 (DISCONTINUADO)"},
+    {"Variable": "Defunciones_Anuales", "Estado": "🟢 Real",
+      "Cobertura": "62,5 %",
+      "Fuente": "Estadísticas Vitales Min. Salud — API CKAN"},
+    {"Variable": "Nacimientos_Anuales", "Estado": "🟢 Real",
+      "Cobertura": "62,5 %",
+      "Fuente": "Estadísticas Vitales Min. Salud — API CKAN"},
+    # 🟡 SINTÉTICAS calibradas
+    {"Variable": "Población_Total", "Estado": "🟡 Sintético calibrado",
+      "Cobertura": "—",
+      "Fuente": "Censo INDEC 2022 + crecimiento 0,9 % anual"},
+    {"Variable": "Población_18_65", "Estado": "🟡 Sintético calibrado",
+      "Cobertura": "—",
+      "Fuente": "Derivado (~64 % del total, EPH-INDEC)"},
+    {"Variable": "Densidad_Poblacional", "Estado": "🟡 Constante",
+      "Cobertura": "—",
+      "Fuente": "Tabla INDEC fija en config.py"},
+    {"Variable": "Pct_Educacion_Superior", "Estado": "🟡 Sintético",
+      "Cobertura": "—",
+      "Fuente": "Generado por región (calibrado a EPH-INDEC)"},
+    {"Variable": "Indice_Ingreso_Promedio", "Estado": "🟡 Sintético",
+      "Cobertura": "—",
+      "Fuente": "Generado por región (calibrado a EPH-INDEC)"},
+    {"Variable": "Tasa_Desempleo", "Estado": "🟡 Sintético",
+      "Cobertura": "—",
+      "Fuente": "Generado por región con pico COVID 2020-21"},
+    {"Variable": "Pct_Cobertura_Salud", "Estado": "🟡 Sintético",
+      "Cobertura": "—",
+      "Fuente": "Generado por región"},
+    # 🔴 100% SINTÉTICAS (target o sin fuente pública)
+    {"Variable": "Campañas_Donacion_Anuales", "Estado": "🔴 100 % sintético",
+      "Cobertura": "—",
+      "Fuente": "Inventado — no hay fuente pública"},
+    {"Variable": "Tasa_Donacion_x1000 (TARGET)",
+      "Estado": "🔴 100 % sintético",
+      "Cobertura": "—",
+      "Fuente": "Calibrado a OPS 19/1.000 (pendiente Plan Nacional Sangre)"},
+    {"Variable": "Donantes_Anuales (TARGET)", "Estado": "🔴 100 % sintético",
+      "Cobertura": "—",
+      "Fuente": "Derivado de la tasa sintética × población"},
+])
+
+st.dataframe(
+    CLASIFICACION_VARIABLES,
+    use_container_width=True,
+    hide_index=True,
+    column_config={
+        "Variable": st.column_config.TextColumn(width="medium"),
+        "Estado": st.column_config.TextColumn(width="medium"),
+        "Cobertura": st.column_config.TextColumn(width="small"),
+        "Fuente": st.column_config.TextColumn(width="large"),
+    },
+)
+
+with st.expander("ℹ️ Leyenda"):
+    st.markdown(
+        """
+        - 🟢 **Real**: descargada en vivo desde una API oficial del
+          Ministerio de Salud (datos.salud.gob.ar). El % indica
+          cuántas filas (provincia × año) están cubiertas — el resto
+          cae al fallback sintético, marcado en la columna `Fuente_*`
+          del dataset.
+        - 🟡 **Sintético calibrado**: generada por código en
+          `src/data_generator.py`, pero los rangos y tendencias están
+          calibrados a fuentes oficiales (INDEC, OPS, EPH).
+        - 🔴 **100 % sintético**: no hay fuente pública disponible.
+          Se reemplazará cuando el Ministerio entregue los datos
+          oficiales del Plan Nacional de Sangre (ver
+          `docs/nota_ministerio.md`).
+        """
+    )
+
+st.markdown("---")
+
+# ---------------------------------------------------------------------
 # Carga del reporte
 # ---------------------------------------------------------------------
 RUTA_REPORTE = config.RUTA_DATA_OUTPUT / "cobertura_fuentes.csv"
