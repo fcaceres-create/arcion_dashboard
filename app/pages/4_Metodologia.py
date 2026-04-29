@@ -18,8 +18,8 @@ sys.path.insert(0, str(RUTA_RAIZ))
 
 from src import config  # noqa: E402
 
-st.set_page_config(page_title="Metodología", page_icon="📚", layout="wide")
-st.title("📚 Metodología")
+st.set_page_config(page_title="ARCION · Metodología", page_icon="📚", layout="wide")
+st.title("📚 ARCION · Metodología")
 
 st.markdown(
     """

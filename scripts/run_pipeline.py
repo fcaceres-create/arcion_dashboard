@@ -29,13 +29,16 @@ from pathlib import Path
 # Permite ejecutar el script desde cualquier directorio
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import pandas as pd  # noqa: E402
+
 from src import config  # noqa: E402
 from src.data_generator import generar_dataset_maestro  # noqa: E402
 from src.data_loader import (  # noqa: E402
     cargar_dataset_maestro, reportar_calidad, separar_historico_proyeccion,
 )
 from src.data_merger import (  # noqa: E402
-    enriquecer_con_refes, reporte_cobertura_refes,
+    enriquecer_con_refes, enriquecer_con_todas_las_fuentes,
+    reporte_cobertura_completo, reporte_cobertura_refes,
 )
 from src.feature_engineering import construir_features  # noqa: E402
 from src.model import entrenar_y_seleccionar  # noqa: E402
@@ -55,28 +58,27 @@ def _exportar_csv_utf8_bom(df, ruta: Path) -> None:
 
 
 def ejecutar_pipeline(regenerar_dataset: bool = False,
-                         usar_refes: bool = False) -> dict:
+                         usar_refes: bool = False,
+                         usar_fuentes_reales: bool = False) -> dict:
     """Corre el pipeline completo.
 
     Args:
         regenerar_dataset: Si True, regenera el Excel sintético desde cero
             aunque ya exista en disco.
-        usar_refes: Si True, descarga REFES y reemplaza la columna sintética
-            ``Centros_Hemoterapia`` con los datos reales del Ministerio de
-            Salud, manteniendo el sintético como fallback documentado.
+        usar_refes: Si True, solo aplica REFES (Capa 1).
+        usar_fuentes_reales: Si True, aplica TODAS las capas (REFES +
+            Dengue + VIH + Médicos + Defunciones + Nacimientos). Toma
+            precedencia sobre ``usar_refes``.
 
     Returns:
         Diccionario con paths de outputs y métricas resumidas.
-
-    Ejemplo:
-        >>> resumen = ejecutar_pipeline(usar_refes=True)
-        >>> resumen["fuente_centros"]
-        {'REFES': 210, 'sintetico': 174}
     """
     t0 = time.perf_counter()
+    modo = ("FUENTES_REALES (1+2+3)" if usar_fuentes_reales
+            else "REFES (Capa 1)" if usar_refes else "sintético")
     log.info("=" * 70)
     log.info("PIPELINE | Proyección Donantes Argentina 2030")
-    log.info("Modo REFES: %s", "ACTIVO" if usar_refes else "inactivo")
+    log.info("Modo: %s", modo)
     log.info("=" * 70)
 
     # 1. Dataset
@@ -94,11 +96,21 @@ def ejecutar_pipeline(regenerar_dataset: bool = False,
     log.info("Reporte de calidad: %s", reporte)
 
     fuente_centros: dict | None = None
-    if usar_refes:
-        log.info("[2.5/6] Enriqueciendo con datos REFES (Min. Salud)...")
+    if usar_fuentes_reales:
+        log.info("[2.5/6] Enriqueciendo con TODAS las fuentes oficiales...")
+        df_maestro = enriquecer_con_todas_las_fuentes(df_maestro)
+        fuente_centros = df_maestro["Fuente_Centros_Hemoterapia"].value_counts().to_dict() \
+            if "Fuente_Centros_Hemoterapia" in df_maestro.columns \
+            else df_maestro.get("Fuente_Centros", pd.Series(dtype=str)).value_counts().to_dict()
+        reporte_cob = reporte_cobertura_completo(df_maestro)
+        ruta_reporte = config.RUTA_DATA_OUTPUT / "cobertura_fuentes.csv"
+        reporte_cob.to_csv(ruta_reporte, index=False, encoding="utf-8-sig")
+        log.info("Reporte de cobertura completo guardado en %s",
+                 ruta_reporte.name)
+    elif usar_refes:
+        log.info("[2.5/6] Enriqueciendo con datos REFES (Capa 1)...")
         df_maestro = enriquecer_con_refes(df_maestro)
         fuente_centros = df_maestro["Fuente_Centros"].value_counts().to_dict()
-        # Persistimos reporte de cobertura para auditoría académica
         reporte_cob = reporte_cobertura_refes(df_maestro)
         ruta_reporte = config.RUTA_DATA_OUTPUT / "cobertura_refes.csv"
         reporte_cob.to_csv(ruta_reporte, index=False, encoding="utf-8-sig")
@@ -150,7 +162,11 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--usar-refes", action="store_true",
-        help="Descargar REFES (Min. Salud) y reemplazar Centros_Hemoterapia.",
+        help="Solo Capa 1: REFES (centros de hemoterapia).",
+    )
+    parser.add_argument(
+        "--fuentes-reales", action="store_true",
+        help="TODAS las capas: REFES + Dengue + VIH + Médicos + Vitales.",
     )
     return parser.parse_args()
 
@@ -160,6 +176,7 @@ if __name__ == "__main__":
     resumen = ejecutar_pipeline(
         regenerar_dataset=args.regenerar_dataset,
         usar_refes=args.usar_refes,
+        usar_fuentes_reales=args.fuentes_reales,
     )
     print("\n=== Resumen ===")
     for k, v in resumen.items():

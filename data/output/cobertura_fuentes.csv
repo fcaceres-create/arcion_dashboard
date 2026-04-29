@@ -1,0 +1,12 @@
+﻿Variable,Fuente,Filas,Pct
+Casos_Dengue_Anual,Vigilancia_Dengue,122,31.8
+Casos_Dengue_Anual,sintetico,262,68.2
+Casos_VIH_Anual,VIH_MinSalud,240,62.5
+Casos_VIH_Anual,sintetico,144,37.5
+Centros,REFES,210,54.7
+Centros,sintetico,174,45.3
+Defunciones_Anuales,EstVitales,240,62.5
+Defunciones_Anuales,sintetico,144,37.5
+Medicos,MinSalud_RRHH,384,100.0
+Nacimientos_Anuales,EstVitales,240,62.5
+Nacimientos_Anuales,sintetico,144,37.5

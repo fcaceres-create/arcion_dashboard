@@ -19,8 +19,8 @@ sys.path.insert(0, str(RUTA_RAIZ))
 from src import config  # noqa: E402
 from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 
-st.set_page_config(page_title="Detalle Provincial", page_icon="📍", layout="wide")
-st.title("📍 Detalle Provincial")
+st.set_page_config(page_title="ARCION · Detalle Provincial", page_icon="📍", layout="wide")
+st.title("📍 ARCION · Detalle Provincial")
 
 
 @st.cache_data

@@ -178,6 +178,35 @@ def _generar_features_provincia(provincia: str,
     tasa = np.round(tasa, 2)
     donantes_anuales = (tasa * poblacion_total / 1000).round().astype(int)
 
+    # --- Variables adicionales (Capa 2 y 3 — fallback sintético) ---
+    # Casos VIH/año: ~0.15 por cada 1000 hab. Aumentan en provincias con
+    # mayor desigualdad y disminuyen levemente con el tiempo.
+    casos_vih_base = poblacion_2024 / 1000 * 0.15
+    casos_vih_anual = _generar_serie_temporal(
+        casos_vih_base, -0.01, 0.20, n_total, rng
+    ).astype(int).clip(min=0)
+
+    # Médicos/provincia: aprox 1 por cada 250 hab (relación INDEC).
+    # Es snapshot fijo (no varía con año, replicado).
+    medicos_total = max(50, int(poblacion_2024 / 250))
+    medicos_anual = np.full(n_total, medicos_total, dtype=int)
+
+    # Defunciones anuales ~ 8 por 1000 hab (tasa bruta argentina).
+    defunciones_base = poblacion_2024 * 0.008
+    defunciones_anual = _generar_serie_temporal(
+        defunciones_base, 0.005, 0.05, n_total, rng
+    ).astype(int).clip(min=0)
+    # Pico COVID 2020-21
+    for i, anio in enumerate(config.TODOS_LOS_ANIOS):
+        if anio in config.ANIOS_PANDEMIA:
+            defunciones_anual[i] = int(defunciones_anual[i] * 1.20)
+
+    # Nacimientos anuales ~ 14 por 1000 hab (tasa bruta argentina, decreciente).
+    nacimientos_base = poblacion_2024 * 0.014
+    nacimientos_anual = _generar_serie_temporal(
+        nacimientos_base, -0.015, 0.04, n_total, rng
+    ).astype(int).clip(min=0)
+
     # --- Construcción del DataFrame ---
     df = pd.DataFrame({
         "Provincia": provincia,
@@ -193,6 +222,10 @@ def _generar_features_provincia(provincia: str,
         "Centros_Hemoterapia": centros_hemoterapia,
         "Campañas_Donacion_Anuales": campañas,
         "Casos_Dengue_Anual": casos_dengue,
+        "Casos_VIH_Anual": casos_vih_anual,
+        "Medicos": medicos_anual,
+        "Defunciones_Anuales": defunciones_anual,
+        "Nacimientos_Anuales": nacimientos_anual,
         "Tasa_Donacion_x1000": tasa,
         "Donantes_Anuales": donantes_anuales,
     })
@@ -222,7 +255,11 @@ def _hoja_diccionario() -> pd.DataFrame:
         ("Pct_Cobertura_Salud", "Decimal", "%", "% de población con obra social o prepaga.", "INDEC EPH"),
         ("Centros_Hemoterapia", "Entero", "unidades", "Cantidad de centros activos.", "Plan Nacional de Sangre"),
         ("Campañas_Donacion_Anuales", "Entero", "unidades", "Campañas oficiales realizadas en el año.", "Plan Nacional de Sangre"),
-        ("Casos_Dengue_Anual", "Entero", "casos", "Casos confirmados de dengue.", "BoletínIntegrado de Vigilancia"),
+        ("Casos_Dengue_Anual", "Entero", "casos", "Casos confirmados de dengue.", "Vigilancia de Dengue y Zika (Min. Salud)"),
+        ("Casos_VIH_Anual", "Entero", "casos", "Notificación de casos de VIH.", "Plan Nacional VIH/SIDA (Min. Salud)"),
+        ("Medicos", "Entero", "personas", "Profesionales médicos por jurisdicción.", "Plan Nacional Recursos Humanos en Salud"),
+        ("Defunciones_Anuales", "Entero", "casos", "Defunciones registradas anuales.", "Estadísticas Vitales (Min. Salud)"),
+        ("Nacimientos_Anuales", "Entero", "casos", "Nacimientos registrados anuales.", "Estadísticas Vitales (Min. Salud)"),
         ("Tasa_Donacion_x1000", "Decimal", "donac/1000 hab", "TARGET — Tasa de donaciones por 1000 hab.", "Plan Nacional de Sangre"),
         ("Donantes_Anuales", "Entero", "personas", "TARGET — Cantidad absoluta de donantes.", "Plan Nacional de Sangre"),
     ], columns=["Variable", "Tipo", "Unidad", "Descripción", "Fuente esperada"])

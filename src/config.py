@@ -135,6 +135,37 @@ PROVINCIAS_ARGENTINA: dict[str, dict] = {
     "Tucumán":               {"poblacion_2024":  1_703_186, "region": "NOA",       "densidad": 75.5},
 }
 
+# Códigos INDEC oficiales de jurisdicciones argentinas.
+# Usados por varias fuentes oficiales (VIH, Vigilancia, etc.) en lugar de nombres.
+# Referencia: INDEC - Codificación de Provincias.
+CODIGO_INDEC_A_PROVINCIA: dict[int, str] = {
+    2:  "CABA",
+    6:  "Buenos Aires",
+    10: "Catamarca",
+    14: "Córdoba",
+    18: "Corrientes",
+    22: "Chaco",
+    26: "Chubut",
+    30: "Entre Ríos",
+    34: "Formosa",
+    38: "Jujuy",
+    42: "La Pampa",
+    46: "La Rioja",
+    50: "Mendoza",
+    54: "Misiones",
+    58: "Neuquén",
+    62: "Río Negro",
+    66: "Salta",
+    70: "San Juan",
+    74: "San Luis",
+    78: "Santa Cruz",
+    82: "Santa Fe",
+    86: "Santiago del Estero",
+    90: "Tucumán",
+    94: "Tierra del Fuego",
+    # 200 = Total Argentina (no es jurisdicción individual)
+}
+
 # Tasa base por región (donaciones/1000) — calibrado a una media nacional ~19
 TASAS_REGIONALES_BASE: dict[str, float] = {
     "Centro":    21.5,
@@ -159,6 +190,19 @@ URL_WORLD_BANK: str = "https://api.worldbank.org/v2/country/ARG/indicator/"
 URL_DATOS_SALUD: str = "https://datos.salud.gob.ar"
 DATASET_REFES_ID: str = (
     "listado-establecimientos-de-salud-asentados-en-el-registro-federal-refes"
+)
+
+# Capa 2 — vigilancia epidemiológica
+DATASET_DENGUE_ID: str = "vigilancia-de-dengue-y-zika"
+DATASET_VIH_ID: str = "notificacion-de-casos-de-vih"
+
+# Capa 3 — recursos humanos + estadísticas vitales
+DATASET_MEDICOS_ID: str = "profesionales-medicos-por-jurisdiccion"
+DATASET_DEFUNCIONES_ID: str = (
+    "serie-historica-de-defunciones-ocurridas-en-argentina-por-jurisdiccion"
+)
+DATASET_NACIMIENTOS_ID: str = (
+    "serie-historica-de-nacimientos-ocurridos-en-argentina-por-jurisdiccion"
 )
 TIMEOUT_API: int = 30  # segundos
 TIMEOUT_DESCARGA_GRANDE: int = 180  # segundos (CSVs de 5-10 MB)

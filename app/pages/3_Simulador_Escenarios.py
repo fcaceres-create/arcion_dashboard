@@ -30,8 +30,8 @@ from src.model import entrenar_y_seleccionar  # noqa: E402
 from src.projection import proyectar_features_completo  # noqa: E402
 from src.utils import formato_numero_argentino  # noqa: E402
 
-st.set_page_config(page_title="Simulador", page_icon="🎛️", layout="wide")
-st.title("🎛️ Simulador de escenarios")
+st.set_page_config(page_title="ARCION · Simulador", page_icon="🎛️", layout="wide")
+st.title("🎛️ ARCION · Simulador de escenarios")
 
 st.markdown(
     """

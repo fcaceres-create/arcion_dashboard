@@ -42,6 +42,10 @@ VARIABLES_A_PROYECTAR = [
     "Centros_Hemoterapia",
     "Campañas_Donacion_Anuales",
     "Casos_Dengue_Anual",
+    "Casos_VIH_Anual",
+    "Medicos",
+    "Defunciones_Anuales",
+    "Nacimientos_Anuales",
 ]
 
 # Límites razonables para evitar extrapolaciones absurdas
@@ -105,7 +109,8 @@ def _proyectar_features_provincia(df_prov_hist: pd.DataFrame) -> pd.DataFrame:
     # Tipos correctos
     cols_enteras = ["Población_Total", "Población_18_65",
                      "Centros_Hemoterapia", "Campañas_Donacion_Anuales",
-                     "Casos_Dengue_Anual"]
+                     "Casos_Dengue_Anual", "Casos_VIH_Anual", "Medicos",
+                     "Defunciones_Anuales", "Nacimientos_Anuales"]
     for col in cols_enteras:
         df_fut[col] = df_fut[col].round().astype(int)
 

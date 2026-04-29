@@ -1,10 +1,14 @@
-# Proyección de Donantes de Sangre en Argentina (2025–2030)
+# ARCION · Proyección de Donantes de Sangre en Argentina (2025–2030)
 
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Status](https://img.shields.io/badge/status-academic--prototype-orange)
 ![Streamlit](https://img.shields.io/badge/UI-Streamlit-red)
 ![PowerBI](https://img.shields.io/badge/Dashboard-PowerBI-yellow)
+
+> **ARCION** es el nombre del proyecto académico. La aplicación web está
+> construida con la librería [Streamlit](https://streamlit.io) (open source)
+> y desplegada en Streamlit Community Cloud.
 
 > Aplicación de análisis predictivo desarrollada como **trabajo final de tesis**, cuyo objetivo es proyectar la cantidad de donantes voluntarios de sangre en las 24 jurisdicciones argentinas hasta el año **2030**, comparando los resultados contra la **meta de la Organización Mundial de la Salud (OMS): 30 donaciones por cada 1.000 habitantes**.
 

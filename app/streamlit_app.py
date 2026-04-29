@@ -27,7 +27,7 @@ from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 # Configuración de página
 # ---------------------------------------------------------------------
 st.set_page_config(
-    page_title="Donantes de Sangre Argentina 2030",
+    page_title="ARCION · Donantes Argentina 2030",
     page_icon="🩸",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -56,14 +56,15 @@ def cargar_datos() -> tuple[pd.DataFrame, pd.DataFrame]:
 # ---------------------------------------------------------------------
 # Header y descripción
 # ---------------------------------------------------------------------
-st.title("🩸 Proyección de Donantes de Sangre · Argentina 2030")
+st.title("🩸 ARCION · Proyección de Donantes de Sangre 2030")
+st.caption("Argentina · 24 jurisdicciones · Comparativa OMS 30/1.000 hab")
 st.markdown(
     """
-    Aplicación de análisis predictivo desarrollada en el marco de un
-    **trabajo de tesis**. Proyecta la cantidad de donantes voluntarios
-    de sangre en las **24 jurisdicciones argentinas** hasta el año 2030
-    y la compara contra el **óptimo recomendado por la OMS**
-    (30 donaciones / 1000 habitantes).
+    **ARCION** es la aplicación de análisis predictivo desarrollada en el
+    marco de un **trabajo de tesis** que proyecta la cantidad de donantes
+    voluntarios de sangre en las **24 jurisdicciones argentinas** hasta
+    2030 y la compara contra el **óptimo recomendado por la OMS**
+    (30 donaciones / 1.000 habitantes).
     """
 )
 
@@ -213,7 +214,7 @@ st.caption(
 # ---------------------------------------------------------------------
 st.markdown("---")
 st.markdown(
-    f"**Proyecto Tesis** · Datos: INDEC, OPS, Plan Nacional de Sangre · "
-    f"Modelo: ML supervisado · "
-    f"[Ver código en GitHub](#)"
+    f"**ARCION** · Proyecto de Tesis · Datos: INDEC, OPS, Min. Salud (REFES, "
+    f"Vigilancia, Estadísticas Vitales) · Modelo: ML supervisado · "
+    f"[Código en GitHub](https://github.com/fcaceres-create/arcion_dashboard)"
 )

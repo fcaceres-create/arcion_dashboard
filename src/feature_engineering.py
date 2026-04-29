@@ -36,11 +36,19 @@ FEATURES_NUMERICAS = [
     "Centros_Hemoterapia",
     "Campañas_Donacion_Anuales",
     "Casos_Dengue_Anual",
+    "Casos_VIH_Anual",
+    "Medicos",
+    "Defunciones_Anuales",
+    "Nacimientos_Anuales",
     "Año",
     # Derivadas
     "Centros_x_100k_hab",
     "Campañas_per_capita",
     "Casos_Dengue_x_1000_hab",
+    "Casos_VIH_x_1000_hab",
+    "Medicos_x_1000_hab",
+    "Tasa_Mortalidad_Bruta",
+    "Tasa_Natalidad_Bruta",
     "Pct_Pob_18_65",
     "Es_Pandemia",
     "Tasa_Donacion_Lag1",
@@ -71,6 +79,24 @@ def _agregar_features_derivadas(df: pd.DataFrame) -> pd.DataFrame:
     # Casos de dengue cada 1000 hab (presión epidemiológica)
     df["Casos_Dengue_x_1000_hab"] = (
         df["Casos_Dengue_Anual"] / df["Población_Total"] * 1000
+    ).round(3)
+
+    # Casos VIH cada 1000 hab
+    df["Casos_VIH_x_1000_hab"] = (
+        df["Casos_VIH_Anual"] / df["Población_Total"] * 1000
+    ).round(3)
+
+    # Médicos cada 1000 hab (densidad sanitaria)
+    df["Medicos_x_1000_hab"] = (
+        df["Medicos"] / df["Población_Total"] * 1000
+    ).round(3)
+
+    # Tasas demográficas brutas
+    df["Tasa_Mortalidad_Bruta"] = (
+        df["Defunciones_Anuales"] / df["Población_Total"] * 1000
+    ).round(3)
+    df["Tasa_Natalidad_Bruta"] = (
+        df["Nacimientos_Anuales"] / df["Población_Total"] * 1000
     ).round(3)
 
     # Proporción de población elegible para donar

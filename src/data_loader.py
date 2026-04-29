@@ -32,6 +32,8 @@ COLUMNAS_REQUERIDAS = [
     "Indice_Ingreso_Promedio", "Tasa_Desempleo",
     "Pct_Cobertura_Salud", "Centros_Hemoterapia",
     "Campañas_Donacion_Anuales", "Casos_Dengue_Anual",
+    "Casos_VIH_Anual", "Medicos",
+    "Defunciones_Anuales", "Nacimientos_Anuales",
     "Tasa_Donacion_x1000", "Donantes_Anuales",
 ]
 

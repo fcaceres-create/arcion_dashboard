@@ -18,8 +18,8 @@ sys.path.insert(0, str(RUTA_RAIZ))
 from src import config  # noqa: E402
 from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 
-st.set_page_config(page_title="Dashboard Nacional", page_icon="🇦🇷", layout="wide")
-st.title("🇦🇷 Dashboard Nacional")
+st.set_page_config(page_title="ARCION · Dashboard Nacional", page_icon="🇦🇷", layout="wide")
+st.title("🇦🇷 ARCION · Dashboard Nacional")
 
 
 @st.cache_data

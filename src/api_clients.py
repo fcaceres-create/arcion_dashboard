@@ -447,7 +447,336 @@ class DatosSaludArClient:
             "Provincia"
         ).reset_index(drop=True)
 
+    # =================================================================
+    # CAPA 2 — Vigilancia epidemiológica
+    # =================================================================
+    def obtener_casos_vih_por_provincia_anio(self) -> pd.DataFrame | None:
+        """Devuelve el panel oficial de casos de VIH por provincia × año.
+
+        Fuente: ``notificacion-de-casos-de-vih`` (Min. Salud).
+        Cobertura típica: 2014–2023 según último CSV publicado.
+
+        El dataset usa **códigos INDEC numéricos** en la columna
+        ``jurisdiccion`` (200 = Argentina total, 6 = Buenos Aires, 2 = CABA...).
+        Mapeamos vía ``config.CODIGO_INDEC_A_PROVINCIA``.
+
+        Returns:
+            DataFrame con columnas ``[Provincia, Año, Casos_VIH]``.
+        """
+        recurso = self._buscar_recurso(
+            config.DATASET_VIH_ID,
+            criterio=lambda r: ("jurisdic" in r.get("name", "").lower()
+                                 and r.get("format") == "CSV"),
+            preferir_mas_reciente=True,
+        )
+        if not recurso:
+            log.error("No se encontró recurso VIH por jurisdicción")
+            return None
+
+        df = self._descargar_recurso(recurso, nombre_cache="vih_jurisdicciones")
+        if df is None:
+            return None
+
+        df = df[df["sexo"].astype(str).str.lower().str.contains("ambos", na=False)]
+        df = df.copy()
+        df["codigo_indec"] = pd.to_numeric(
+            df["jurisdiccion"], errors="coerce"
+        ).astype("Int64")
+        df["Provincia"] = df["codigo_indec"].map(config.CODIGO_INDEC_A_PROVINCIA)
+        df = df.dropna(subset=["Provincia"]).copy()  # excluye 200 = ARG total
+
+        df["Año"] = pd.to_numeric(df["anio"], errors="coerce").astype("Int64")
+        df["Casos_VIH"] = pd.to_numeric(df["casos_vih"], errors="coerce").fillna(0).astype(int)
+        df = df.dropna(subset=["Año"])
+        df["Año"] = df["Año"].astype(int)
+
+        return df[["Provincia", "Año", "Casos_VIH"]].sort_values(
+            ["Provincia", "Año"]
+        ).reset_index(drop=True)
+
+    def obtener_casos_dengue_por_provincia_anio(self) -> pd.DataFrame | None:
+        """Devuelve casos de dengue por provincia × año.
+
+        Combina los CSVs anuales del dataset ``vigilancia-de-dengue-y-zika``,
+        agregando por (Provincia, Año) y filtrando ``evento_nombre='Dengue'``.
+
+        Returns:
+            DataFrame con columnas ``[Provincia, Año, Casos_Dengue]``.
+        """
+        from src.utils import normalizar_provincia
+
+        payload = self._package_show(config.DATASET_DENGUE_ID)
+        if not payload:
+            return None
+
+        recursos = [r for r in payload.get("resources", [])
+                    if r.get("format") in ("CSV", "XLSX", "XLS")]
+        # Anotamos año del nombre del recurso
+        for r in recursos:
+            r["anio_inferido"] = self._inferir_anio(r.get("name", ""))
+
+        paneles: list[pd.DataFrame] = []
+        for r in recursos:
+            anio = r.get("anio_inferido")
+            if not anio:
+                continue
+            r_copy = dict(r)
+            df = self._descargar_recurso(
+                r_copy, nombre_cache=f"dengue_{anio}"
+            )
+            if df is None:
+                continue
+            # Buscamos columna de provincia, casos, año (varían entre snapshots).
+            # Schema viejo (2018-2022): provincia_nombre, ano|año, cantidad_casos
+            # Schema nuevo (2024+):    provincia_residencia, anio_min, cantidad
+            col_prov = next(
+                (c for c in ("provincia_nombre", "provincia_residencia",
+                              "provincia")
+                  if c in df.columns), None)
+            col_id_prov = next(
+                (c for c in ("provincia_id", "id_prov_indec_residencia")
+                  if c in df.columns), None)
+            col_casos = next(
+                (c for c in ("cantidad_casos", "cantidad", "casos",
+                              "casos_totales")
+                  if c in df.columns), None)
+            col_anio = next(
+                (c for c in ("ano", "anio", "año", "anio_min")
+                  if c in df.columns), None)
+            col_evento = next(
+                (c for c in ("evento_nombre", "evento") if c in df.columns),
+                None,
+            )
+            if not (col_casos and col_anio and (col_prov or col_id_prov)):
+                log.warning("Snapshot dengue %d sin columnas esperadas; skip",
+                            anio)
+                continue
+            df = df.copy()
+            if col_evento:
+                df = df[df[col_evento].astype(str).str.lower().str.contains(
+                    "dengue", na=False)]
+            # Preferimos código INDEC numérico si está (mapeo más robusto)
+            if col_id_prov:
+                df["Provincia_raw"] = df[col_id_prov]
+                df["__usa_id_indec"] = True
+            else:
+                df["Provincia_raw"] = df[col_prov]
+                df["__usa_id_indec"] = False
+            df = df[["Provincia_raw", col_anio, col_casos,
+                      "__usa_id_indec"]].rename(columns={
+                col_anio: "Año", col_casos: "Casos_Dengue",
+            })
+            paneles.append(df)
+
+        if not paneles:
+            return None
+
+        df_all = pd.concat(paneles, ignore_index=True)
+        df_all["Año"] = pd.to_numeric(df_all["Año"], errors="coerce").astype(
+            "Int64"
+        )
+        df_all = df_all.dropna(subset=["Año"])
+        df_all["Casos_Dengue"] = pd.to_numeric(
+            df_all["Casos_Dengue"], errors="coerce"
+        ).fillna(0)
+
+        # Mapeo en dos vías: si la fila vino con código INDEC, mapeamos vía
+        # CODIGO_INDEC_A_PROVINCIA; si vino con nombre, usamos normalización.
+        mapa_nombre = {normalizar_provincia(p): p
+                        for p in config.PROVINCIAS_ARGENTINA.keys()}
+
+        def _mapear(row):
+            if row["__usa_id_indec"]:
+                try:
+                    cod = int(row["Provincia_raw"])
+                    return config.CODIGO_INDEC_A_PROVINCIA.get(cod)
+                except (TypeError, ValueError):
+                    return None
+            return mapa_nombre.get(normalizar_provincia(str(row["Provincia_raw"])))
+
+        df_all["Provincia"] = df_all.apply(_mapear, axis=1)
+        df_all = df_all.dropna(subset=["Provincia"])
+
+        agregado = (
+            df_all.groupby(["Provincia", "Año"], as_index=False)["Casos_Dengue"]
+            .sum()
+        )
+        agregado["Año"] = agregado["Año"].astype(int)
+        agregado["Casos_Dengue"] = agregado["Casos_Dengue"].round().astype(int)
+        return agregado.sort_values(["Provincia", "Año"]).reset_index(drop=True)
+
+    # =================================================================
+    # CAPA 3 — Recursos humanos y estadísticas vitales
+    # =================================================================
+    def obtener_medicos_por_provincia(self) -> pd.DataFrame | None:
+        """Devuelve la cantidad de médicos por provincia (snapshot único).
+
+        El dataset oficial ``profesionales-medicos-por-jurisdiccion`` está
+        marcado como **DISCONTINUADO** y solo expone un snapshot histórico
+        (no varía con el año). Lo replicamos para todos los años del rango
+        histórico como variable cuasi-fija.
+
+        Returns:
+            DataFrame con columnas ``[Provincia, Medicos]``.
+        """
+        from src.utils import normalizar_provincia
+
+        recurso = self._buscar_recurso(
+            config.DATASET_MEDICOS_ID,
+            criterio=lambda r: r.get("format") == "CSV",
+        )
+        if not recurso:
+            return None
+
+        df = self._descargar_recurso(recurso, nombre_cache="medicos")
+        if df is None:
+            return None
+
+        col_prov = next(
+            (c for c in ("provincia_desc", "provincia_nombre", "provincia")
+              if c in df.columns), None)
+        col_med = next(
+            (c for c in ("medicos_cantidad_total", "medicos", "cantidad")
+              if c in df.columns), None)
+        if not (col_prov and col_med):
+            log.error("Médicos: columnas no detectadas. Cols: %s",
+                      list(df.columns))
+            return None
+
+        df = df[[col_prov, col_med]].rename(columns={
+            col_prov: "Provincia_raw", col_med: "Medicos",
+        })
+        df["__prov_norm"] = df["Provincia_raw"].apply(normalizar_provincia)
+        mapa = {normalizar_provincia(p): p
+                for p in config.PROVINCIAS_ARGENTINA.keys()}
+        df["Provincia"] = df["__prov_norm"].map(mapa)
+        df = df.dropna(subset=["Provincia"]).copy()
+        df["Medicos"] = pd.to_numeric(df["Medicos"], errors="coerce").astype(
+            "Int64"
+        )
+        return df[["Provincia", "Medicos"]].sort_values("Provincia").reset_index(
+            drop=True
+        )
+
+    def obtener_defunciones_por_provincia_anio(self) -> pd.DataFrame | None:
+        """Devuelve panel de defunciones por provincia × año (1914-2024).
+
+        Fuente: ``serie-historica-de-defunciones...``. El XLSX viene en
+        formato wide (columnas = provincias) — lo desnormalizamos a long.
+        """
+        return self._descargar_serie_vital(
+            dataset_id=config.DATASET_DEFUNCIONES_ID,
+            nombre_variable="Defunciones",
+            nombre_cache="defunciones",
+        )
+
+    def obtener_nacimientos_por_provincia_anio(self) -> pd.DataFrame | None:
+        """Devuelve panel de nacimientos por provincia × año (1914-2024).
+
+        Fuente: ``serie-historica-de-nacimientos...``. Mismo formato wide
+        que defunciones, con typos de columnas (``medoza``, ``santiengo_...``)
+        que normalizamos.
+        """
+        return self._descargar_serie_vital(
+            dataset_id=config.DATASET_NACIMIENTOS_ID,
+            nombre_variable="Nacimientos",
+            nombre_cache="nacimientos",
+        )
+
     # -------- Internas --------
+    def _buscar_recurso(self, dataset_id: str,
+                          criterio,
+                          preferir_mas_reciente: bool = True) -> dict | None:
+        """Busca el primer recurso de un dataset que cumple el criterio."""
+        payload = self._package_show(dataset_id)
+        if not payload:
+            return None
+        candidatos = [r for r in payload.get("resources", []) if criterio(r)]
+        if not candidatos:
+            return None
+        if preferir_mas_reciente:
+            candidatos.sort(key=lambda r: r.get("last_modified", ""), reverse=True)
+        recurso = candidatos[0]
+        recurso["anio_inferido"] = self._inferir_anio(recurso.get("name", "")) or 0
+        return recurso
+
+    def _descargar_serie_vital(self, dataset_id: str,
+                                  nombre_variable: str,
+                                  nombre_cache: str) -> pd.DataFrame | None:
+        """Genérico para defunciones y nacimientos (mismo formato wide).
+
+        Convierte el formato wide (anio + columnas por provincia) a long
+        (Provincia, Año, valor).
+        """
+        from src.utils import normalizar_provincia
+
+        recurso = self._buscar_recurso(
+            dataset_id,
+            criterio=lambda r: r.get("format") == "XLSX",
+            preferir_mas_reciente=True,
+        )
+        if not recurso:
+            return None
+
+        df = self._descargar_recurso(recurso, nombre_cache=nombre_cache)
+        if df is None:
+            return None
+
+        # Detectamos columna de año
+        col_anio = next(
+            (c for c in ("anio", "año", "ano", "year") if c in df.columns), None)
+        if not col_anio:
+            log.error("%s: columna de año no encontrada. Cols: %s",
+                      nombre_variable, list(df.columns))
+            return None
+
+        # Las columnas de provincias son todas las que no son año ni "total"
+        # ni "república argentina" / "total_argentina"
+        cols_provincia = [
+            c for c in df.columns
+            if c != col_anio
+            and "total" not in c.lower()
+            and "argentina" not in c.lower()
+        ]
+
+        df_long = df[[col_anio] + cols_provincia].melt(
+            id_vars=[col_anio],
+            var_name="Provincia_raw",
+            value_name=nombre_variable,
+        )
+        df_long["Año"] = pd.to_datetime(
+            df_long[col_anio], errors="coerce"
+        ).dt.year
+        # Si era ya un int, fallback
+        df_long["Año"] = df_long["Año"].fillna(
+            pd.to_numeric(df_long[col_anio], errors="coerce")
+        ).astype("Int64")
+        df_long = df_long.dropna(subset=["Año"])
+
+        df_long["__prov_norm"] = df_long["Provincia_raw"].apply(
+            lambda x: normalizar_provincia(str(x).replace("_", " "))
+        )
+        # Mapeo de los typos del dataset oficial
+        typos = {
+            "medoza": "mendoza",
+            "santiengo del estero": "santiago del estero",
+            "tierra del fuego-antartida-islas-atlantico sud": "tierra del fuego",
+            "tierra del fuego antartida islas atlantico sud": "tierra del fuego",
+            "capital federal": "caba",
+        }
+        df_long["__prov_norm"] = df_long["__prov_norm"].replace(typos)
+
+        mapa = {normalizar_provincia(p): p
+                for p in config.PROVINCIAS_ARGENTINA.keys()}
+        df_long["Provincia"] = df_long["__prov_norm"].map(mapa)
+        df_long = df_long.dropna(subset=["Provincia", nombre_variable]).copy()
+        df_long["Año"] = df_long["Año"].astype(int)
+        df_long[nombre_variable] = df_long[nombre_variable].astype(int)
+
+        return df_long[["Provincia", "Año", nombre_variable]].sort_values(
+            ["Provincia", "Año"]
+        ).reset_index(drop=True)
+
     def _package_show(self, dataset_id: str) -> dict | None:
         """Llama a CKAN /api/3/action/package_show con caché."""
         url = f"{self.URL_BASE}/api/3/action/package_show"
@@ -511,14 +840,26 @@ class DatosSaludArClient:
         return posteriores[0] if posteriores else None
 
     def _descargar_recurso(self, recurso: dict,
-                              forzar_recarga: bool = False) -> pd.DataFrame | None:
-        """Descarga un recurso CKAN y lo parsea a DataFrame con caché."""
+                              forzar_recarga: bool = False,
+                              nombre_cache: str | None = None,
+                              ) -> pd.DataFrame | None:
+        """Descarga un recurso CKAN y lo parsea a DataFrame con caché.
+
+        Args:
+            recurso: dict de CKAN con al menos ``url``, ``format``,
+                opcionalmente ``anio_inferido``.
+            forzar_recarga: si True ignora el caché.
+            nombre_cache: clave del archivo de caché (sin extensión).
+                Si es ``None``, se usa ``refes_<anio>`` (compatibilidad).
+        """
         import io
         url = recurso["url"]
         formato = recurso.get("format", "").upper()
 
         # Caché en pickle (sin dependencias extra; archivo local de confianza)
-        archivo_cache = config.RUTA_API_CACHE / f"refes_{recurso['anio_inferido']}.pkl"
+        if nombre_cache is None:
+            nombre_cache = f"refes_{recurso.get('anio_inferido', 0)}"
+        archivo_cache = config.RUTA_API_CACHE / f"{nombre_cache}.pkl"
         if archivo_cache.exists() and not forzar_recarga:
             log.info("Snapshot %s recuperado de caché local", recurso["anio_inferido"])
             try:

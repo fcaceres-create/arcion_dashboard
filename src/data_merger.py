@@ -203,6 +203,206 @@ def enriquecer_con_refes(df_maestro: pd.DataFrame,
     return df
 
 
+def _enriquecer_columna_anio_provincia(
+    df_maestro: pd.DataFrame,
+    df_real: pd.DataFrame,
+    columna_destino: str,
+    columna_real: str,
+    nombre_fuente: str,
+) -> pd.DataFrame:
+    """Helper genérico: reemplaza una columna usando datos reales por (Provincia, Año).
+
+    Args:
+        df_maestro: Panel maestro a enriquecer.
+        df_real: DataFrame con columnas ``[Provincia, Año, columna_real]``.
+        columna_destino: Nombre de la columna en df_maestro a sobrescribir.
+        columna_real: Nombre de la columna en df_real con el valor.
+        nombre_fuente: Etiqueta para la columna ``Fuente_<destino>``.
+
+    Returns:
+        Copia de df_maestro con columna actualizada y trazabilidad.
+    """
+    df = df_maestro.copy()
+    fuente_col = f"Fuente_{columna_destino}"
+
+    if df_real is None or df_real.empty:
+        log.warning("Sin datos reales para %s — todo queda sintético",
+                    columna_destino)
+        if fuente_col not in df.columns:
+            df[fuente_col] = "sintetico"
+        return df
+
+    df = df.merge(
+        df_real[["Provincia", "Año", columna_real]].rename(
+            columns={columna_real: f"__{columna_real}_real"}
+        ),
+        on=["Provincia", "Año"], how="left",
+    )
+    es_real = df[f"__{columna_real}_real"].notna() & (
+        df[f"__{columna_real}_real"] > 0
+    )
+    df[fuente_col] = "sintetico"
+    df.loc[es_real, fuente_col] = nombre_fuente
+    df[columna_destino] = df[f"__{columna_real}_real"].where(
+        es_real, df[columna_destino]
+    ).round().astype(int)
+    df = df.drop(columns=[f"__{columna_real}_real"])
+
+    cobertura = df[fuente_col].value_counts().to_dict()
+    log.info("Cobertura %s | %s", columna_destino, cobertura)
+    return df
+
+
+def enriquecer_con_dengue(df_maestro: pd.DataFrame,
+                              cliente: DatosSaludArClient | None = None,
+                              ) -> pd.DataFrame:
+    """Reemplaza ``Casos_Dengue_Anual`` con datos reales de vigilancia."""
+    cliente = cliente or DatosSaludArClient()
+    log.info("Capa 2 | Enriqueciendo con casos reales de Dengue...")
+    df_real = cliente.obtener_casos_dengue_por_provincia_anio()
+    return _enriquecer_columna_anio_provincia(
+        df_maestro, df_real,
+        columna_destino="Casos_Dengue_Anual",
+        columna_real="Casos_Dengue",
+        nombre_fuente="Vigilancia_Dengue",
+    )
+
+
+def enriquecer_con_vih(df_maestro: pd.DataFrame,
+                          cliente: DatosSaludArClient | None = None,
+                          ) -> pd.DataFrame:
+    """Reemplaza ``Casos_VIH_Anual`` con datos reales del Plan Nacional VIH."""
+    cliente = cliente or DatosSaludArClient()
+    log.info("Capa 2 | Enriqueciendo con casos reales de VIH...")
+    df_real = cliente.obtener_casos_vih_por_provincia_anio()
+    return _enriquecer_columna_anio_provincia(
+        df_maestro, df_real,
+        columna_destino="Casos_VIH_Anual",
+        columna_real="Casos_VIH",
+        nombre_fuente="VIH_MinSalud",
+    )
+
+
+def enriquecer_con_medicos(df_maestro: pd.DataFrame,
+                              cliente: DatosSaludArClient | None = None,
+                              ) -> pd.DataFrame:
+    """Reemplaza ``Medicos`` con el snapshot oficial (DISCONTINUADO 2019).
+
+    Como el snapshot no varía con el año, replicamos el valor para todos
+    los años de cada provincia.
+    """
+    cliente = cliente or DatosSaludArClient()
+    log.info("Capa 3 | Enriqueciendo con cantidad real de Médicos...")
+    df_real = cliente.obtener_medicos_por_provincia()
+    if df_real is None or df_real.empty:
+        df_maestro = df_maestro.copy()
+        df_maestro["Fuente_Medicos"] = "sintetico"
+        return df_maestro
+
+    # Replicamos el snapshot a todos los años para hacer un merge limpio
+    anios = df_maestro["Año"].unique()
+    df_real_anual = pd.concat([
+        df_real.assign(Año=a) for a in anios
+    ], ignore_index=True)
+
+    return _enriquecer_columna_anio_provincia(
+        df_maestro, df_real_anual,
+        columna_destino="Medicos",
+        columna_real="Medicos",
+        nombre_fuente="MinSalud_RRHH",
+    )
+
+
+def enriquecer_con_defunciones(df_maestro: pd.DataFrame,
+                                   cliente: DatosSaludArClient | None = None,
+                                   ) -> pd.DataFrame:
+    """Reemplaza ``Defunciones_Anuales`` con la serie histórica oficial."""
+    cliente = cliente or DatosSaludArClient()
+    log.info("Capa 3 | Enriqueciendo con defunciones reales...")
+    df_real = cliente.obtener_defunciones_por_provincia_anio()
+    return _enriquecer_columna_anio_provincia(
+        df_maestro, df_real,
+        columna_destino="Defunciones_Anuales",
+        columna_real="Defunciones",
+        nombre_fuente="EstVitales",
+    )
+
+
+def enriquecer_con_nacimientos(df_maestro: pd.DataFrame,
+                                    cliente: DatosSaludArClient | None = None,
+                                    ) -> pd.DataFrame:
+    """Reemplaza ``Nacimientos_Anuales`` con la serie histórica oficial."""
+    cliente = cliente or DatosSaludArClient()
+    log.info("Capa 3 | Enriqueciendo con nacimientos reales...")
+    df_real = cliente.obtener_nacimientos_por_provincia_anio()
+    return _enriquecer_columna_anio_provincia(
+        df_maestro, df_real,
+        columna_destino="Nacimientos_Anuales",
+        columna_real="Nacimientos",
+        nombre_fuente="EstVitales",
+    )
+
+
+def enriquecer_con_todas_las_fuentes(
+    df_maestro: pd.DataFrame,
+    cliente: DatosSaludArClient | None = None,
+) -> pd.DataFrame:
+    """Aplica todas las capas (REFES + Dengue + VIH + Médicos + Vitales).
+
+    Es el orquestador completo: una sola llamada activa todas las fuentes
+    reales del Min. Salud, manteniendo trazabilidad por columna.
+
+    Args:
+        df_maestro: Panel maestro sintético.
+        cliente: Cliente compartido (evita re-instanciar).
+
+    Returns:
+        Panel enriquecido con columnas ``Fuente_*`` por cada variable.
+    """
+    cliente = cliente or DatosSaludArClient()
+    log.info("=" * 60)
+    log.info("Aplicando enriquecimiento completo (Capa 1 + 2 + 3)")
+    log.info("=" * 60)
+    df = df_maestro
+    df = enriquecer_con_refes(df, cliente=cliente)        # Capa 1
+    df = enriquecer_con_dengue(df, cliente=cliente)       # Capa 2
+    df = enriquecer_con_vih(df, cliente=cliente)          # Capa 2
+    df = enriquecer_con_medicos(df, cliente=cliente)      # Capa 3
+    df = enriquecer_con_defunciones(df, cliente=cliente)  # Capa 3
+    df = enriquecer_con_nacimientos(df, cliente=cliente)  # Capa 3
+    return df
+
+
+def reporte_cobertura_completo(df: pd.DataFrame) -> pd.DataFrame:
+    """Construye un reporte de cobertura por columna y por fuente.
+
+    Útil para la página de Streamlit y para anexar a la tesis.
+
+    Args:
+        df: Panel ya enriquecido (con columnas ``Fuente_*``).
+
+    Returns:
+        DataFrame con columnas ``[Variable, Fuente, Filas, Pct]``.
+    """
+    cols_fuente = [c for c in df.columns if c.startswith("Fuente_")]
+    if not cols_fuente:
+        return pd.DataFrame(columns=["Variable", "Fuente", "Filas", "Pct"])
+
+    filas = []
+    for col in cols_fuente:
+        variable = col.replace("Fuente_", "")
+        for fuente, count in df[col].value_counts().items():
+            filas.append({
+                "Variable": variable,
+                "Fuente": fuente,
+                "Filas": int(count),
+                "Pct": round(count / len(df) * 100, 1),
+            })
+    return pd.DataFrame(filas).sort_values(
+        ["Variable", "Fuente"]
+    ).reset_index(drop=True)
+
+
 def reporte_cobertura_refes(df: pd.DataFrame) -> pd.DataFrame:
     """Resume la cobertura REFES vs sintético por provincia.
 
