@@ -42,10 +42,44 @@ st.markdown(
 # Clasificación de variables (curada manualmente)
 # ---------------------------------------------------------------------
 st.subheader("🗂️ Clasificación por origen de cada variable")
-st.caption(
-    "Mapa explícito de qué viene de APIs oficiales, qué es sintético "
-    "calibrado a fuentes reales (INDEC, OPS) y qué requiere ser "
-    "reemplazado cuando lleguen los datos del Plan Nacional de Sangre."
+st.markdown(
+    """
+    Para entender la **fiabilidad** de cada variable hay que distinguir
+    **dos dimensiones**:
+
+    | Dimensión | Posibles valores |
+    |-----------|------------------|
+    | **De dónde viene el dato** | API REST oficial · Google Sheet (almacenado por nosotros) |
+    | **Cómo se generó el valor sintético** | Calibrado a fuente oficial · Inventado sin referencia |
+
+    Combinando ambas obtenemos los **3 niveles de fiabilidad** que ves en
+    la tabla más abajo:
+    """
+)
+st.markdown(
+    """
+    <div style="display:flex; gap:1rem; margin: 1rem 0;">
+      <div style="flex:1; padding: .8rem; border-left: 4px solid #16A34A; background: rgba(22,163,74,0.07);">
+        <b>🟢 Real (alta fiabilidad)</b><br/>
+        <small>Origen: <b>API oficial</b> — descargado en vivo de
+        <code>datos.salud.gob.ar</code>. Es un dato observado y publicado
+        por el Ministerio.</small>
+      </div>
+      <div style="flex:1; padding: .8rem; border-left: 4px solid #F59E0B; background: rgba(245,158,11,0.07);">
+        <b>🟡 Sintético calibrado (fiabilidad media)</b><br/>
+        <small>Origen: <b>Google Sheet</b>, generado por fórmula. Pero
+        los <b>parámetros base son oficiales</b> (Censo INDEC, EPH, OPS).
+        Es una <b>estimación razonable</b>, no un invento.</small>
+      </div>
+      <div style="flex:1; padding: .8rem; border-left: 4px solid #DC2626; background: rgba(220,38,38,0.07);">
+        <b>🔴 100% sintético (baja fiabilidad)</b><br/>
+        <small>Origen: <b>Google Sheet</b>, generado <b>sin referencia
+        oficial</b>. Se reemplazará cuando el Ministerio entregue datos.
+        Es la <b>limitación explícita</b> del proyecto.</small>
+      </div>
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 CLASIFICACION_VARIABLES = pd.DataFrame([
@@ -115,21 +149,71 @@ st.dataframe(
     },
 )
 
-with st.expander("ℹ️ Leyenda"):
+with st.expander("📖 Ejemplos concretos de cómo se construye cada categoría"):
     st.markdown(
         """
-        - 🟢 **Real**: descargada en vivo desde una API oficial del
-          Ministerio de Salud (datos.salud.gob.ar). El % indica
-          cuántas filas (provincia × año) están cubiertas — el resto
-          cae al fallback sintético, marcado en la columna `Fuente_*`
-          del dataset.
-        - 🟡 **Sintético calibrado**: generada por código en
-          `src/data_generator.py`, pero los rangos y tendencias están
-          calibrados a fuentes oficiales (INDEC, OPS, EPH).
-        - 🔴 **100 % sintético**: no hay fuente pública disponible.
-          Se reemplazará cuando el Ministerio entregue los datos
-          oficiales del Plan Nacional de Sangre (ver
-          `docs/nota_ministerio.md`).
+        ### 🟡 Sintético calibrado: caso `Población_Total`
+
+        ```python
+        # Partimos del dato real del INDEC (Censo 2022)
+        pob_2024 = poblacion_REAL_INDEC[provincia]
+
+        # Aplicamos la tasa OFICIAL de crecimiento (proyecciones INDEC: 0,9 % anual)
+        pob_2015 = pob_2024 / (1.009 ** 9)
+        poblacion_total[año] = pob_2015 * (1.009 ** año)
+        ```
+
+        - El `1,009` (0,9 % anual) **NO es inventado** → es la tasa de
+          crecimiento oficial proyectada por INDEC.
+        - La **base** (`pob_2024`) viene del Censo INDEC 2022 oficial.
+        - El número final lo genera el código, pero **base y tendencia
+          son reales**. Es defendible académicamente diciendo:
+          *"se asumió la tendencia INDEC + variabilidad gaussiana ±0,3 %"*.
+
+        ---
+
+        ### 🟡 Sintético calibrado: caso `Pct_Educacion_Superior`
+
+        - Punto de partida: **promedios reales EPH-INDEC** por región
+          (Centro ~22 %, NOA ~15 %, NEA ~13 %).
+        - Variabilidad estadística ±2 % entre años y provincias.
+        - Es una **proyección estadística realista**, no un invento.
+
+        ---
+
+        ### 🔴 100 % sintético: caso `Tasa_Donacion_x1000` (TARGET)
+
+        - Calibré la **media nacional** a 19/1.000 (línea OPS 2023).
+        - Pero las **variaciones provinciales** (Centro 21,5 · NEA 15,4)
+          las generé yo. **No tengo las tasas reales por provincia**.
+        - Es el dato más crítico (es el target) y el que **más necesita
+          ser reemplazado** cuando el Ministerio responda.
+
+        ---
+
+        ### 🔴 100 % sintético: caso `Campañas_Donacion_Anuales`
+
+        - **No existe ninguna fuente pública** que reporte cuántas
+          campañas hace cada provincia por año.
+        - Lo inventé proporcional a la población.
+        - Cuando el Plan Nacional de Sangre publique esto (si alguna vez
+          lo publica), pasará a ser 🟢 Real.
+        """
+    )
+
+with st.expander("🎓 Implicaciones para la defensa académica"):
+    st.markdown(
+        """
+        | Categoría | Defensa esperada ante el tribunal |
+        |-----------|------------------------------------|
+        | 🟢 Real | "Esta variable proviene de la API oficial X, fuente Y." → directo |
+        | 🟡 Sintético calibrado | "Asume tendencia INDEC/EPH + variabilidad ε. Cuando se obtengan los datos provinciales individuales, el modelo se reentrena automáticamente." → aceptable |
+        | 🔴 100 % sintético | **Limitación explícita** del estudio. Se documenta en `docs/nota_ministerio.md` y se compromete reemplazo a futuro. → debe reconocerse, no esconderse |
+
+        **Trazabilidad por fila**: cada combinación (provincia × año) tiene
+        una columna `Fuente_<Variable>` que indica si su valor es real o
+        sintético. El gráfico de cobertura más abajo y el archivo
+        `cobertura_fuentes.csv` lo documentan filo a filo.
         """
     )
 
