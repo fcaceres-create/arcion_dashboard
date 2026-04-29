@@ -63,7 +63,12 @@ source venv/bin/activate
 
 ```bash
 pip install --upgrade pip
+
+# Solo lo necesario para correr la app
 pip install -r requirements.txt
+
+# Adicional para desarrollo (tests, notebooks)
+pip install -r requirements-dev.txt
 ```
 
 ---
