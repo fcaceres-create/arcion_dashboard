@@ -100,7 +100,7 @@ Salida esperada en `data/output/`:
 ### 4.2. Aplicación Streamlit
 
 ```bash
-streamlit run app/streamlit_app.py
+streamlit run app/Inicio.py
 ```
 
 La app se abrirá en `http://localhost:8501`.

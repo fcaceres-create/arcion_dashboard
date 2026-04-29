@@ -4,7 +4,7 @@ Página de inicio con KPIs nacionales, gráfico de escenarios y mapa
 coroplético. Las páginas adicionales viven en ``app/pages/``.
 
 Para ejecutar:
-    $ streamlit run app/streamlit_app.py
+    $ streamlit run app/Inicio.py
 """
 from __future__ import annotations
 
