@@ -1,0 +1,80 @@
+# =====================================================================
+# .gitignore - Proyecto Proyección Donantes Argentina
+# =====================================================================
+
+# --- Entornos virtuales ---
+venv/
+env/
+.venv/
+ENV/
+
+# --- Bytecode / cache de Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# --- Build / distribución ---
+build/
+dist/
+*.egg-info/
+*.egg
+.eggs/
+
+# --- Tests / coverage ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+
+# --- Notebooks: outputs (no checkpoints) ---
+.ipynb_checkpoints/
+*.ipynb_meta
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Variables de entorno / secretos ---
+.env
+.env.local
+*.pem
+*.key
+secrets.json
+
+# --- Datos sensibles / pesados (raw) ---
+# Excluimos los datos crudos por privacidad cuando lleguen los reales.
+# Los outputs del modelo SÍ se versionan para reproducibilidad académica.
+data/raw/*.xlsx
+data/raw/*.csv
+data/raw/*.xls
+!data/raw/.gitkeep
+
+# --- Cache de APIs ---
+.cache/
+*.cache
+src/.api_cache/
+
+# --- Streamlit ---
+.streamlit/secrets.toml
+
+# --- Logs ---
+*.log
+logs/
+
+# --- Power BI ---
+*.pbix.bak
+~$*.pbix

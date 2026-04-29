@@ -1,0 +1,219 @@
+"""Aplicación Streamlit principal del proyecto.
+
+Página de inicio con KPIs nacionales, gráfico de escenarios y mapa
+coroplético. Las páginas adicionales viven en ``app/pages/``.
+
+Para ejecutar:
+    $ streamlit run app/streamlit_app.py
+"""
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+import streamlit as st
+
+# Permite importar desde src cuando se corre la app
+RUTA_RAIZ = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(RUTA_RAIZ))
+
+from src import config  # noqa: E402
+from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
+
+# ---------------------------------------------------------------------
+# Configuración de página
+# ---------------------------------------------------------------------
+st.set_page_config(
+    page_title="Donantes de Sangre Argentina 2030",
+    page_icon="🩸",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+
+# ---------------------------------------------------------------------
+# Carga de datos (con autoejecución del pipeline si no existen)
+# ---------------------------------------------------------------------
+@st.cache_data(show_spinner="Cargando proyecciones...")
+def cargar_datos() -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Carga el CSV de proyección. Si no existe, ejecuta el pipeline.
+
+    Returns:
+        Tupla ``(df_proyeccion, df_resumen_nacional)``.
+    """
+    if not config.ARCHIVO_PROYECCION_CSV.exists():
+        st.warning("No se encontraron resultados. Ejecutando pipeline...")
+        from scripts.run_pipeline import ejecutar_pipeline
+        ejecutar_pipeline()
+    df_proy = pd.read_csv(config.ARCHIVO_PROYECCION_CSV, encoding="utf-8-sig")
+    df_nac = pd.read_csv(config.ARCHIVO_RESUMEN_NACIONAL, encoding="utf-8-sig")
+    return df_proy, df_nac
+
+
+# ---------------------------------------------------------------------
+# Header y descripción
+# ---------------------------------------------------------------------
+st.title("🩸 Proyección de Donantes de Sangre · Argentina 2030")
+st.markdown(
+    """
+    Aplicación de análisis predictivo desarrollada en el marco de un
+    **trabajo de tesis**. Proyecta la cantidad de donantes voluntarios
+    de sangre en las **24 jurisdicciones argentinas** hasta el año 2030
+    y la compara contra el **óptimo recomendado por la OMS**
+    (30 donaciones / 1000 habitantes).
+    """
+)
+
+with st.expander("ℹ️ Sobre los datos"):
+    st.info(
+        "Esta versión utiliza un **dataset sintético** calibrado a la línea "
+        "base nacional (~19/1000, OPS 2023). Se reemplazará por datos "
+        "oficiales del Plan Nacional de Sangre cuando estén disponibles."
+    )
+
+df_proy, df_nac = cargar_datos()
+
+# ---------------------------------------------------------------------
+# Sidebar: filtros globales
+# ---------------------------------------------------------------------
+st.sidebar.header("⚙️ Filtros")
+escenario_seleccionado = st.sidebar.selectbox(
+    "Escenario para los KPIs:",
+    options=list(config.ESCENARIOS),
+    index=1,  # base
+)
+st.sidebar.caption(
+    "Pesimista, Base y Optimista difieren en supuestos de campañas, "
+    "desempleo, educación y centros."
+)
+
+# ---------------------------------------------------------------------
+# KPIs nacionales
+# ---------------------------------------------------------------------
+st.subheader("📊 KPIs nacionales")
+
+# Tasa actual (último año histórico)
+fila_actual = df_nac[
+    (df_nac["Escenario"] == "historico") &
+    (df_nac["Año"] == config.ANIO_FIN_HISTORICO)
+]
+if fila_actual.empty:
+    # Si no hay 'historico' en el resumen, tomo el último de cualquier escenario
+    fila_actual = df_nac[df_nac["Año"] == config.ANIO_FIN_HISTORICO].head(1)
+
+tasa_actual = float(fila_actual["Tasa_Nacional_x1000"].iloc[0]) if len(fila_actual) else config.TASA_ARGENTINA_BASE
+
+# Tasa proyectada 2030 según escenario
+fila_2030 = df_nac[
+    (df_nac["Escenario"] == escenario_seleccionado) &
+    (df_nac["Año"] == config.ANIO_FIN_PROYECCION)
+]
+tasa_2030 = float(fila_2030["Tasa_Nacional_x1000"].iloc[0]) if len(fila_2030) else 0.0
+brecha_oms = config.OMS_OPTIMO_X1000 - tasa_2030
+cumplimiento = tasa_2030 / config.OMS_OPTIMO_X1000
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric(
+    f"Tasa actual ({config.ANIO_FIN_HISTORICO})",
+    f"{formato_numero_argentino(tasa_actual, 2)} / 1000",
+)
+c2.metric(
+    f"Proyección {config.ANIO_FIN_PROYECCION}",
+    f"{formato_numero_argentino(tasa_2030, 2)} / 1000",
+    f"{formato_numero_argentino(tasa_2030 - tasa_actual, 2)}",
+)
+c3.metric(
+    "Brecha OMS",
+    f"{formato_numero_argentino(brecha_oms, 2)} / 1000",
+    delta_color="inverse",
+)
+c4.metric(
+    "% cumplimiento OMS",
+    formato_porcentaje(cumplimiento, 1),
+)
+
+# ---------------------------------------------------------------------
+# Gráfico de escenarios + línea OMS
+# ---------------------------------------------------------------------
+st.subheader("📈 Trayectoria nacional · 3 escenarios vs meta OMS")
+
+df_plot = df_nac.copy()
+fig_lineas = go.Figure()
+colores = {"historico": "#374151", "pesimista": "#DC2626",
+            "base": "#2563EB", "optimista": "#16A34A"}
+
+for esc, color in colores.items():
+    sub = df_plot[df_plot["Escenario"] == esc].sort_values("Año")
+    if sub.empty:
+        continue
+    fig_lineas.add_trace(go.Scatter(
+        x=sub["Año"], y=sub["Tasa_Nacional_x1000"],
+        mode="lines+markers", name=esc.capitalize(),
+        line=dict(color=color, width=3),
+    ))
+
+fig_lineas.add_hline(
+    y=config.OMS_OPTIMO_X1000, line_dash="dash", line_color="#B45309",
+    annotation_text=f"Meta OMS: {config.OMS_OPTIMO_X1000}/1000",
+    annotation_position="top left",
+)
+fig_lineas.update_layout(
+    xaxis_title="Año",
+    yaxis_title="Donaciones por 1000 habitantes",
+    legend_title="Escenario",
+    hovermode="x unified",
+    template="plotly_white",
+    height=480,
+)
+st.plotly_chart(fig_lineas, use_container_width=True)
+
+# ---------------------------------------------------------------------
+# Mapa coroplético
+# ---------------------------------------------------------------------
+st.subheader(f"🗺️ Mapa provincial · {config.ANIO_FIN_PROYECCION} · Escenario {escenario_seleccionado}")
+
+df_mapa = df_proy[
+    (df_proy["Escenario"] == escenario_seleccionado) &
+    (df_proy["Año"] == config.ANIO_FIN_PROYECCION)
+].copy()
+
+# Como GeoJSON oficial puede no estar embebido, usamos un mapa horizontal por barras
+# (gráfico tipo treemap como alternativa visual).
+fig_mapa = px.bar(
+    df_mapa.sort_values("Tasa_Donacion_x1000", ascending=True),
+    x="Tasa_Donacion_x1000",
+    y="Provincia",
+    color="Tasa_Donacion_x1000",
+    color_continuous_scale="RdYlGn",
+    range_color=(10, 30),
+    labels={
+        "Tasa_Donacion_x1000": "Donaciones por 1000 hab",
+        "Provincia": "Jurisdicción",
+    },
+    height=720,
+    orientation="h",
+)
+fig_mapa.add_vline(
+    x=config.OMS_OPTIMO_X1000, line_dash="dash", line_color="black",
+    annotation_text="Meta OMS",
+)
+fig_mapa.update_layout(template="plotly_white")
+st.plotly_chart(fig_mapa, use_container_width=True)
+
+st.caption(
+    "💡 Para drill-down por provincia, simulación de escenarios y "
+    "explicación metodológica, navegá a las páginas del menú lateral."
+)
+
+# ---------------------------------------------------------------------
+# Footer
+# ---------------------------------------------------------------------
+st.markdown("---")
+st.markdown(
+    f"**Proyecto Tesis** · Datos: INDEC, OPS, Plan Nacional de Sangre · "
+    f"Modelo: ML supervisado · "
+    f"[Ver código en GitHub](#)"
+)
