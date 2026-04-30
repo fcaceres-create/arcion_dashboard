@@ -209,3 +209,132 @@ st.caption(
     "💡 La predicción se actualiza automáticamente al mover los sliders. "
     "El modelo subyacente fue seleccionado por validación cruzada k=5."
 )
+
+# ---------------------------------------------------------------------
+# Historial de últimas N simulaciones
+# ---------------------------------------------------------------------
+HISTORIAL_KEY = "historial_simulador"
+MAX_HISTORIAL = 5
+
+if HISTORIAL_KEY not in st.session_state:
+    st.session_state[HISTORIAL_KEY] = []
+
+# Hash de la corrida actual para evitar duplicar entradas consecutivas
+# cuando Streamlit re-ejecuta el script sin que el usuario haya tocado
+# nada (p.ej. al cambiar de pestaña y volver).
+hash_actual = (
+    provincia, delta_campañas, delta_educacion, delta_desempleo,
+    delta_centros, delta_cobertura, delta_dengue,
+)
+historial = st.session_state[HISTORIAL_KEY]
+ultimo_hash = historial[-1].get("_hash") if historial else None
+
+if hash_actual != ultimo_hash:
+    historial.append({
+        "_hash": hash_actual,
+        "iter": (historial[-1]["iter"] + 1) if historial else 1,
+        "Provincia": provincia,
+        "Δ Camp.": f"{delta_campañas:+d}%",
+        "Δ Educ.": f"{delta_educacion:+d} pp",
+        "Δ Desempl.": f"{delta_desempleo:+d} pp",
+        "Δ Centros": f"{delta_centros:+d}%",
+        "Δ Cobert.": f"{delta_cobertura:+d} pp",
+        "Δ Dengue": f"{delta_dengue:+d}%",
+        "Tasa base": prediccion_base,
+        "Tasa simulada": prediccion_simulada,
+        "Δ tasa": prediccion_simulada - prediccion_base,
+        "% OMS": prediccion_simulada / config.OMS_OPTIMO_X1000 * 100,
+    })
+    st.session_state[HISTORIAL_KEY] = historial[-MAX_HISTORIAL:]
+
+historial_vivo = st.session_state[HISTORIAL_KEY]
+if historial_vivo:
+    st.markdown("---")
+    cab1, cab2 = st.columns([5, 1])
+    with cab1:
+        st.subheader("📊 Comparación de tus últimas simulaciones")
+        st.caption(
+            f"Tus últimas {len(historial_vivo)} simulaciones únicas — "
+            f"sirve para ver de un vistazo cómo cada ajuste de sliders "
+            f"impactó la tasa proyectada. Se mantienen hasta {MAX_HISTORIAL} "
+            f"y se descartan las más viejas automáticamente."
+        )
+    with cab2:
+        if st.button("🗑️ Limpiar", key="limpiar_historial_sim"):
+            st.session_state[HISTORIAL_KEY] = []
+            st.rerun()
+
+    df_hist = pd.DataFrame(historial_vivo).drop(columns=["_hash"])
+
+    # --- Chart: barra de Δ tasa por iteración ---
+    colores_barras = [
+        "#16A34A" if d > 0 else ("#DC2626" if d < 0 else "#9CA3AF")
+        for d in df_hist["Δ tasa"]
+    ]
+    fig_hist = go.Figure()
+    fig_hist.add_trace(go.Bar(
+        x=[f"#{i}" for i in df_hist["iter"]],
+        y=df_hist["Δ tasa"],
+        marker_color=colores_barras,
+        text=[f"{d:+.2f}" for d in df_hist["Δ tasa"]],
+        textposition="outside",
+        hovertext=[
+            f"{prov}<br>Tasa base: {b:.2f}<br>Tasa simulada: {s:.2f}"
+            f"<br>% OMS: {p:.1f}%"
+            for prov, b, s, p in zip(
+                df_hist["Provincia"], df_hist["Tasa base"],
+                df_hist["Tasa simulada"], df_hist["% OMS"],
+            )
+        ],
+        hoverinfo="text",
+    ))
+    fig_hist.add_hline(y=0, line_color="#6B7280", line_width=1)
+    fig_hist.update_layout(
+        title="Δ Tasa simulada − Tasa base, por iteración",
+        yaxis_title="Δ /1000 hab",
+        xaxis_title="Iteración",
+        template="plotly_white",
+        height=320,
+        showlegend=False,
+        margin=dict(t=60, b=40),
+    )
+    st.plotly_chart(fig_hist, use_container_width=True)
+
+    # --- Tabla detallada ---
+    df_show_hist = df_hist.copy()
+    df_show_hist["Tasa base"] = df_show_hist["Tasa base"].apply(
+        lambda v: formato_numero_argentino(v, 2)
+    )
+    df_show_hist["Tasa simulada"] = df_show_hist["Tasa simulada"].apply(
+        lambda v: formato_numero_argentino(v, 2)
+    )
+    df_show_hist["Δ tasa"] = df_show_hist["Δ tasa"].apply(
+        lambda v: f"{v:+.2f}"
+    )
+    df_show_hist["% OMS"] = df_show_hist["% OMS"].apply(
+        lambda v: f"{formato_numero_argentino(v, 1)}%"
+    )
+    df_show_hist = df_show_hist.rename(columns={"iter": "#"})
+    df_show_hist = df_show_hist[[
+        "#", "Provincia",
+        "Δ Camp.", "Δ Educ.", "Δ Desempl.",
+        "Δ Centros", "Δ Cobert.", "Δ Dengue",
+        "Tasa base", "Tasa simulada", "Δ tasa", "% OMS",
+    ]]
+
+    def _color_delta_tasa(val: str) -> str:
+        s = str(val).strip()
+        if s.startswith("+") and s.lstrip("+").replace(",", ".") != "0.00":
+            return "color: #16A34A; font-weight: 600;"
+        if s.startswith("-"):
+            return "color: #DC2626; font-weight: 600;"
+        return "color: #6B7280;"
+
+    cols_num_hist = ["Tasa base", "Tasa simulada", "Δ tasa", "% OMS"]
+    styled_hist = (
+        df_show_hist.style
+        .map(_color_delta_tasa, subset=["Δ tasa"])
+        .set_properties(subset=cols_num_hist, **{"text-align": "right"})
+        .set_properties(subset=["#"], **{"text-align": "center"})
+    )
+    st.dataframe(styled_hist, use_container_width=True, hide_index=True)

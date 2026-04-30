@@ -54,16 +54,28 @@ with col_pop_tabla:
          "Población_Total", "OMS_Optimo"],
     )
 
-# Filtros
-escenarios_disponibles = df_nac["Escenario"].unique().tolist()
-col_f1, col_f2 = st.columns([2, 5])
-with col_f1:
-    escenarios_filtro = st.multiselect(
-        "Filtrar escenarios:",
-        options=escenarios_disponibles,
-        default=escenarios_disponibles,
-        key="filtro_escenario_dashnac",
-    )
+# Filtros: un checkbox por escenario, todos tildados por default
+st.markdown("**Filtrar escenarios:**")
+ETIQUETAS_ESCENARIO = {
+    "historico": "⬜ Histórico",
+    "pesimista": "🟥 Pesimista",
+    "base":      "🟦 Base",
+    "optimista": "🟩 Optimista",
+}
+escenarios_disponibles = [
+    e for e in ETIQUETAS_ESCENARIO if e in df_nac["Escenario"].unique()
+]
+cols_chk = st.columns(len(escenarios_disponibles))
+escenarios_filtro: list[str] = []
+for col, esc in zip(cols_chk, escenarios_disponibles):
+    with col:
+        if st.checkbox(
+            ETIQUETAS_ESCENARIO[esc],
+            value=True,
+            key=f"chk_{esc}_dashnac",
+        ):
+            escenarios_filtro.append(esc)
+
 if not escenarios_filtro:
     st.info("Seleccioná al menos un escenario para ver la tabla.")
 else:
