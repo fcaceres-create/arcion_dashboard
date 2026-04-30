@@ -23,6 +23,32 @@ def _formatear_url(url: str | None, texto: str | None = None) -> str:
     return f"[{texto or url}]({url})"
 
 
+def _almacenamiento_para_nivel(nivel: str, fuente: dict) -> str:
+    """Describe dónde reside físicamente el dato según su nivel.
+
+    Permite responder al usuario "¿de dónde lo lee la app?" sin tener
+    que documentar ese campo en cada entrada del catálogo.
+    """
+    # Override explícito si el catálogo lo declara
+    if "almacenamiento" in fuente:
+        return fuente["almacenamiento"]
+    if nivel == "real":
+        return ("Descargado en vivo desde la API oficial "
+                "(`src/api_clients.py`) con caché local en `src/.api_cache/`.")
+    if nivel in ("calibrado", "sintetico"):
+        return ("Google Sheet (pestaña `Datos`), generado por "
+                "`src/data_generator.py` y editable desde la página `Editor`.")
+    if nivel == "modelo":
+        return ("Calculado en runtime por el modelo ML entrenado en la "
+                "sesión actual. No se almacena.")
+    if nivel == "derivado":
+        return ("Calculado en runtime a partir de los valores del catálogo. "
+                "No se almacena.")
+    if nivel == "estandar":
+        return "Constante normativa definida en `src/config.py`."
+    return "—"
+
+
 def render_popover_fuente(fuente_key: str) -> None:
     """Renderiza el contenido de un popover con la trazabilidad del KPI.
 
@@ -68,6 +94,10 @@ def render_popover_fuente(fuente_key: str) -> None:
 
     if "origen" in fuente:
         st.markdown(f"**Cómo se obtiene:** {fuente['origen']}")
+
+    almacenamiento = _almacenamiento_para_nivel(nivel, fuente)
+    if almacenamiento and almacenamiento != "—":
+        st.markdown(f"**Dónde se almacena:** {almacenamiento}")
 
     if fuente.get("dataset"):
         link = _formatear_url(fuente.get("url_dataset"), fuente["dataset"])
@@ -146,7 +176,7 @@ def kpi_con_fuente(
     # botones del popover queden alineados entre columnas.
     if delta is None:
         st.markdown(
-            "<div style='height: 1.6rem;'></div>",
+            "<div style='height: 2.2rem;'></div>",
             unsafe_allow_html=True,
         )
 
