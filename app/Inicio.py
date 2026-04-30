@@ -151,10 +151,9 @@ with c4:
 # ---------------------------------------------------------------------
 # Gráfico de escenarios + línea OMS
 # ---------------------------------------------------------------------
-col_t1, col_t2 = st.columns([5, 1])
-with col_t1:
-    st.subheader("📈 Trayectoria nacional · 3 escenarios vs meta OMS")
-with col_t2:
+st.subheader("📈 Trayectoria nacional · 3 escenarios vs meta OMS")
+col_t_pop, _ = st.columns([2, 5])
+with col_t_pop:
     popover_origen_chart(
         "Origen de los datos",
         ["Tasa_Nacional_Actual", "Tasa_Nacional_Proyectada", "OMS_Optimo"],
@@ -216,13 +215,12 @@ st.plotly_chart(fig_lineas, use_container_width=True)
 # ---------------------------------------------------------------------
 # Mapa coroplético
 # ---------------------------------------------------------------------
-col_m1, col_m2 = st.columns([5, 1])
-with col_m1:
-    st.subheader(
-        f"🗺️ Mapa provincial · {config.ANIO_FIN_PROYECCION} · "
-        f"Escenario {escenario_seleccionado}"
-    )
-with col_m2:
+st.subheader(
+    f"🗺️ Mapa provincial · {config.ANIO_FIN_PROYECCION} · "
+    f"Escenario {escenario_seleccionado}"
+)
+col_m_pop, _ = st.columns([2, 5])
+with col_m_pop:
     popover_origen_chart(
         "Origen de los datos",
         ["Tasa_Donacion_x1000", "OMS_Optimo"],
