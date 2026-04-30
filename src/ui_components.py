@@ -173,10 +173,11 @@ def kpi_con_fuente(
     )
 
     # Reservamos el alto del delta cuando no hay delta, para que los
-    # botones del popover queden alineados entre columnas.
+    # botones del popover queden alineados entre columnas. Streamlit
+    # renderiza el delta con ~2.6rem incluyendo márgenes; matcheamos.
     if delta is None:
         st.markdown(
-            "<div style='height: 2.2rem;'></div>",
+            "<div style='height: 2.6rem;'></div>",
             unsafe_allow_html=True,
         )
 
