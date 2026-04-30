@@ -142,6 +142,14 @@ def kpi_con_fuente(
         help=tooltip,
     )
 
+    # Reservamos el alto del delta cuando no hay delta, para que los
+    # botones del popover queden alineados entre columnas.
+    if delta is None:
+        st.markdown(
+            "<div style='height: 1.6rem;'></div>",
+            unsafe_allow_html=True,
+        )
+
     with st.popover("📖 Ver origen del dato", use_container_width=True):
         render_popover_fuente(fuente_key)
 

@@ -156,15 +156,38 @@ fig_lineas = go.Figure()
 colores = {"historico": "#374151", "pesimista": "#DC2626",
             "base": "#2563EB", "optimista": "#16A34A"}
 
+# Punto puente: último valor histórico, lo prependemos a cada escenario
+# para que se vea la continuidad visual entre el histórico y el inicio
+# de la proyección (2025) sin "ruptura".
+fila_puente = df_plot[
+    (df_plot["Escenario"] == "historico") &
+    (df_plot["Año"] == config.ANIO_FIN_HISTORICO)
+].head(1)
+puente_x = int(fila_puente["Año"].iloc[0]) if not fila_puente.empty else None
+puente_y = float(fila_puente["Tasa_Nacional_x1000"].iloc[0]) if not fila_puente.empty else None
+
 for esc, color in colores.items():
     sub = df_plot[df_plot["Escenario"] == esc].sort_values("Año")
     if sub.empty:
         continue
+    x_vals = sub["Año"].tolist()
+    y_vals = sub["Tasa_Nacional_x1000"].tolist()
+    if esc != "historico" and puente_x is not None:
+        x_vals = [puente_x] + x_vals
+        y_vals = [puente_y] + y_vals
     fig_lineas.add_trace(go.Scatter(
-        x=sub["Año"], y=sub["Tasa_Nacional_x1000"],
+        x=x_vals, y=y_vals,
         mode="lines+markers", name=esc.capitalize(),
         line=dict(color=color, width=3),
     ))
+
+# Banda de proyección para distinguir visualmente histórico vs futuro
+fig_lineas.add_vrect(
+    x0=config.ANIO_FIN_HISTORICO + 0.5,
+    x1=config.ANIO_FIN_PROYECCION + 0.5,
+    fillcolor="#FCD34D", opacity=0.10, line_width=0,
+    annotation_text="Proyección", annotation_position="top left",
+)
 
 fig_lineas.add_hline(
     y=config.OMS_OPTIMO_X1000, line_dash="dash", line_color="#B45309",
