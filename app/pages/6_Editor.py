@@ -124,6 +124,12 @@ st.success(
     f"✅ Conectado al Sheet · pestañas detectadas: {', '.join(hojas_disponibles)}"
 )
 
+sheet_id = st.secrets["google_sheets"]["sheet_id"]
+url_sheet = f"https://docs.google.com/spreadsheets/d/{sheet_id}/edit"
+st.markdown(
+    f"🔗 **Archivo real:** [Abrir Google Sheet en una pestaña nueva]({url_sheet})"
+)
+
 # Verificamos si la hoja principal "Datos" tiene contenido
 try:
     df_datos_check = _cargar_hoja_cached("Datos")

@@ -197,11 +197,15 @@ fig.add_trace(go.Bar(
     text=[formato_numero_argentino(v, 0) for v in
             [donantes_base_abs, donantes_sim_abs, donantes_oms]],
     textposition="outside",
+    cliponaxis=False,
 ))
+maximo_donantes = max(donantes_base_abs, donantes_sim_abs, donantes_oms)
 fig.update_layout(
     title=f"Donantes proyectados {config.ANIO_FIN_PROYECCION} · {provincia}",
     yaxis_title="Cantidad de donantes",
+    yaxis=dict(range=[0, maximo_donantes * 1.18]),
     template="plotly_white", height=420,
+    margin=dict(t=80),
 )
 st.plotly_chart(fig, use_container_width=True)
 
@@ -278,6 +282,7 @@ if historial_vivo:
         marker_color=colores_barras,
         text=[f"{d:+.2f}" for d in df_hist["Δ tasa"]],
         textposition="outside",
+        cliponaxis=False,  # evita que el texto se corte si la barra llega al borde
         hovertext=[
             f"{prov}<br>Tasa base: {b:.2f}<br>Tasa simulada: {s:.2f}"
             f"<br>% OMS: {p:.1f}%"
@@ -289,14 +294,21 @@ if historial_vivo:
         hoverinfo="text",
     ))
     fig_hist.add_hline(y=0, line_color="#6B7280", line_width=1)
+    # Padding en el eje Y para que el texto no se mezcle con el borde
+    valores_delta = df_hist["Δ tasa"].tolist() + [0.0]
+    rango_max = max(valores_delta)
+    rango_min = min(valores_delta)
+    span = max(abs(rango_max), abs(rango_min), 0.5)
+    padding = span * 0.25
     fig_hist.update_layout(
         title="Δ Tasa simulada − Tasa base, por iteración",
         yaxis_title="Δ /1000 hab",
         xaxis_title="Iteración",
         template="plotly_white",
-        height=320,
+        height=360,
         showlegend=False,
-        margin=dict(t=60, b=40),
+        margin=dict(t=70, b=50, l=60, r=40),
+        yaxis=dict(range=[rango_min - padding, rango_max + padding]),
     )
     st.plotly_chart(fig_hist, use_container_width=True)
 
