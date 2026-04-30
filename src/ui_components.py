@@ -126,6 +126,42 @@ def render_popover_fuente(fuente_key: str) -> None:
         st.warning(f"⚠️ **Limitación:** {fuente['limitacion']}")
 
 
+def _render_delta_html(delta: str | None, delta_color: str) -> str:
+    """Construye el HTML del bloque delta con altura fija.
+
+    El bloque delta SIEMPRE se rendea con la misma altura (1.5rem),
+    sea o no haya valor. Cuando no hay delta, devolvemos un
+    placeholder vacío con la misma altura para garantizar alineación
+    pixel-perfect entre columnas.
+    """
+    altura = "1.5rem"
+    if delta is None:
+        return (
+            f'<div style="height:{altura}; line-height:{altura};">'
+            f'&nbsp;</div>'
+        )
+    delta_str = str(delta).strip()
+    es_negativo = delta_str.startswith("-")
+    es_cero = delta_str.lstrip("-").lstrip("+") in ("0", "0,00", "0.00", "0,0", "0.0")
+
+    if delta_color == "off" or es_cero:
+        color = "rgba(160,160,160,0.85)"
+        flecha = ""
+    else:
+        invertir = (delta_color == "inverse")
+        if es_negativo:
+            color = "#16A34A" if invertir else "#DC2626"
+            flecha = "↓"
+        else:
+            color = "#DC2626" if invertir else "#16A34A"
+            flecha = "↑"
+    return (
+        f'<div style="height:{altura}; line-height:{altura}; '
+        f'font-size:0.875rem; color:{color};">'
+        f'{flecha} {delta_str}</div>'
+    )
+
+
 def kpi_con_fuente(
     label: str,
     value: str,
@@ -134,55 +170,79 @@ def kpi_con_fuente(
     delta_color: str = "normal",
     help_text: str | None = None,
 ) -> None:
-    """Renderiza un ``st.metric`` con ícono de fiabilidad y popover de origen.
+    """Renderiza un KPI con ícono de fiabilidad y popover de origen.
 
-    Pensado para reemplazar llamadas directas a ``st.metric(...)`` cuando
-    se quiere que el usuario pueda inspeccionar el origen del dato sin
+    Construye el KPI con HTML manual para garantizar alineación
+    pixel-perfect entre columnas (el delta opcional siempre reserva su
+    altura). Cualquier usuario puede abrir el popover "📖 Ver origen
+    del dato" para inspeccionar la trazabilidad académica del KPI sin
     salir de la página.
 
     Args:
         label: Etiqueta del KPI (ej. "Tasa actual 2024").
         value: Valor formateado a mostrar (ej. "19,30 / 1000").
-        fuente_key: Clave en ``config.FUENTES_VARIABLES`` con la
-            trazabilidad del dato.
-        delta: Variación opcional respecto a un baseline (igual que st.metric).
-        delta_color: 'normal' | 'inverse' | 'off' (igual que st.metric).
-        help_text: Tooltip adicional opcional. Si no se pasa, se usa la
+        fuente_key: Clave en ``config.FUENTES_VARIABLES``.
+        delta: Variación opcional. Si es None, igual reserva el espacio.
+        delta_color: 'normal' | 'inverse' | 'off'.
+        help_text: Tooltip nativo del browser. Si no se pasa, usa la
             descripción de la fuente.
-
-    Ejemplo:
-        >>> kpi_con_fuente(
-        ...     label="Tasa actual (2024)",
-        ...     value="19,30 / 1000",
-        ...     fuente_key="Tasa_Nacional_Actual",
-        ... )
     """
     fuente = config.FUENTES_VARIABLES.get(fuente_key, {})
     nivel = fuente.get("nivel", "sintetico")
     icono = config.NIVELES_FIABILIDAD.get(nivel, {}).get("icono", "ℹ️")
 
-    label_completo = f"{icono} {label}"
-    tooltip = help_text or fuente.get("descripcion")
+    tooltip = (help_text or fuente.get("descripcion") or "").replace('"', "'")
+    title_attr = f' title="{tooltip}"' if tooltip else ""
 
-    st.metric(
-        label_completo,
-        value,
-        delta=delta,
-        delta_color=delta_color,
-        help=tooltip,
+    delta_html = _render_delta_html(delta, delta_color)
+
+    bloque_html = (
+        f'<div>'
+        f'  <div style="font-size:0.875rem; color:rgba(160,160,160,0.95); '
+        f'height:1.4rem; line-height:1.4rem; margin-bottom:0.25rem;"{title_attr}>'
+        f'{icono} {label}'
+        f'  </div>'
+        f'  <div style="font-size:1.875rem; font-weight:600; '
+        f'line-height:2.2rem; height:2.2rem; margin-bottom:0.4rem;">'
+        f'{value}'
+        f'  </div>'
+        f'  {delta_html}'
+        f'</div>'
     )
-
-    # Reservamos el alto del delta cuando no hay delta, para que los
-    # botones del popover queden alineados entre columnas. Streamlit
-    # renderiza el delta con ~2.6rem incluyendo márgenes; matcheamos.
-    if delta is None:
-        st.markdown(
-            "<div style='height: 2.6rem;'></div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown(bloque_html, unsafe_allow_html=True)
 
     with st.popover("📖 Ver origen del dato", use_container_width=True):
         render_popover_fuente(fuente_key)
+
+
+def popover_origen_chart(
+    label: str,
+    fuente_keys: list[str],
+    icono: str = "📖",
+) -> None:
+    """Popover compacto que documenta el origen de un chart o mapa.
+
+    Útil cuando un gráfico combina varias series/variables y queremos
+    que el usuario pueda inspeccionar el origen de cada una en un solo
+    botón al lado del título.
+
+    Args:
+        label: Texto del botón (ej. "Origen de los datos").
+        fuente_keys: Lista de claves en ``config.FUENTES_VARIABLES`` a
+            documentar dentro del popover.
+        icono: Emoji al inicio del botón.
+
+    Ejemplo:
+        >>> popover_origen_chart(
+        ...     "Origen de los datos",
+        ...     ["Tasa_Nacional_Actual", "Tasa_Nacional_Proyectada"],
+        ... )
+    """
+    with st.popover(f"{icono} {label}", use_container_width=True):
+        for i, key in enumerate(fuente_keys):
+            if i > 0:
+                st.markdown("---")
+            render_popover_fuente(key)
 
 
 def leyenda_niveles() -> None:

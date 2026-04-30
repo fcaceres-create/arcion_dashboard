@@ -21,7 +21,9 @@ RUTA_RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RUTA_RAIZ))
 
 from src import config  # noqa: E402
-from src.ui_components import kpi_con_fuente, leyenda_niveles  # noqa: E402
+from src.ui_components import (  # noqa: E402
+    kpi_con_fuente, leyenda_niveles, popover_origen_chart,
+)
 from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 
 # ---------------------------------------------------------------------
@@ -149,7 +151,14 @@ with c4:
 # ---------------------------------------------------------------------
 # Gráfico de escenarios + línea OMS
 # ---------------------------------------------------------------------
-st.subheader("📈 Trayectoria nacional · 3 escenarios vs meta OMS")
+col_t1, col_t2 = st.columns([5, 1])
+with col_t1:
+    st.subheader("📈 Trayectoria nacional · 3 escenarios vs meta OMS")
+with col_t2:
+    popover_origen_chart(
+        "Origen de los datos",
+        ["Tasa_Nacional_Actual", "Tasa_Nacional_Proyectada", "OMS_Optimo"],
+    )
 
 df_plot = df_nac.copy()
 fig_lineas = go.Figure()
@@ -207,7 +216,17 @@ st.plotly_chart(fig_lineas, use_container_width=True)
 # ---------------------------------------------------------------------
 # Mapa coroplético
 # ---------------------------------------------------------------------
-st.subheader(f"🗺️ Mapa provincial · {config.ANIO_FIN_PROYECCION} · Escenario {escenario_seleccionado}")
+col_m1, col_m2 = st.columns([5, 1])
+with col_m1:
+    st.subheader(
+        f"🗺️ Mapa provincial · {config.ANIO_FIN_PROYECCION} · "
+        f"Escenario {escenario_seleccionado}"
+    )
+with col_m2:
+    popover_origen_chart(
+        "Origen de los datos",
+        ["Tasa_Donacion_x1000", "OMS_Optimo"],
+    )
 
 df_mapa = df_proy[
     (df_proy["Escenario"] == escenario_seleccionado) &
@@ -247,7 +266,8 @@ st.caption(
 # ---------------------------------------------------------------------
 st.markdown("---")
 st.markdown(
-    f"**ARCION** · Proyecto de Tesis · Datos: INDEC, OPS, Min. Salud (REFES, "
-    f"Vigilancia, Estadísticas Vitales) · Modelo: ML supervisado · "
-    f"[Código en GitHub](https://github.com/fcaceres-create/arcion_dashboard)"
+    f"**ARCION** · Proyecto de Tesis · "
+    f"**Autora:** Gisela Poliak · "
+    f"Datos: INDEC, OPS, Min. Salud (REFES, Vigilancia, Estadísticas Vitales) · "
+    f"Modelo: ML supervisado"
 )
