@@ -394,4 +394,37 @@ FUENTES_VARIABLES: dict[str, dict] = {
         "origen": "Tasa_Nacional_Proyectada / OMS_OPTIMO_X1000 × 100.",
         "depende_de": ["OMS_Optimo", "Tasa_Nacional_Proyectada"],
     },
+    "Brecha_Donantes_OMS": {
+        "nivel": "derivado",
+        "descripcion": "Cantidad absoluta de donantes faltantes para alcanzar la meta OMS.",
+        "origen": "Donantes_OMS_Necesarios − Donantes_Anuales (cuenta entera).",
+        "depende_de": ["OMS_Optimo", "Donantes_Anuales", "Población_Total"],
+    },
+    "Tasa_Simulada": {
+        "nivel": "modelo",
+        "descripcion": "Tasa de donación al 2030 con ajustes manuales del usuario.",
+        "origen": "Predicción del mismo modelo ML usado en Tasa_Nacional_Proyectada, "
+                  "pero con las variables ajustadas por los sliders del simulador "
+                  "(campañas, educación, desempleo, centros, cobertura, dengue).",
+        "depende_de": ["Tasa_Nacional_Proyectada", "Campañas_Donacion_Anuales",
+                        "Pct_Educacion_Superior", "Tasa_Desempleo",
+                        "Centros_Hemoterapia", "Pct_Cobertura_Salud",
+                        "Casos_Dengue_Anual"],
+        "limitacion": "Las elasticidades del modelo son las observadas en el "
+                      "panel sintético; no necesariamente reflejan elasticidades reales.",
+    },
+    "Variacion_Tasa_Historica": {
+        "nivel": "derivado",
+        "descripcion": "Variación promedio anual de la tasa nacional en el período histórico.",
+        "origen": "Promedio simple de las diferencias interanuales de "
+                  "Tasa_Nacional_x1000 entre 2015 y el último año histórico.",
+        "depende_de": ["Tasa_Nacional_Actual"],
+    },
+    "Variacion_Tasa_Proyectada": {
+        "nivel": "derivado",
+        "descripcion": "Variación promedio anual proyectada de la tasa nacional (escenario base).",
+        "origen": "Promedio simple de las diferencias interanuales en la "
+                  "trayectoria proyectada por el modelo (escenario 'base').",
+        "depende_de": ["Tasa_Nacional_Proyectada"],
+    },
 }

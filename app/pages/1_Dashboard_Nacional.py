@@ -16,6 +16,7 @@ RUTA_RAIZ = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(RUTA_RAIZ))
 
 from src import config  # noqa: E402
+from src.ui_components import kpi_con_fuente, leyenda_niveles  # noqa: E402
 from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 
 st.set_page_config(page_title="ARCION · Dashboard Nacional", page_icon="🇦🇷", layout="wide")
@@ -93,19 +94,24 @@ st.subheader("🔄 Variación interanual (escenario base)")
 df_base = df_nac[df_nac["Escenario"].isin(["historico", "base"])].sort_values("Año").copy()
 df_base["Var_Tasa"] = df_base["Tasa_Nacional_x1000"].diff().round(2)
 
+leyenda_niveles()
 c1, c2 = st.columns(2)
-c1.metric(
-    "Variación promedio histórica",
-    formato_numero_argentino(
-        df_base[df_base["Escenario"] == "historico"]["Var_Tasa"].mean(), 2
-    ) + " /año",
-)
-c2.metric(
-    "Variación promedio proyectada (base)",
-    formato_numero_argentino(
-        df_base[df_base["Escenario"] == "base"]["Var_Tasa"].mean(), 2
-    ) + " /año",
-)
+with c1:
+    kpi_con_fuente(
+        label="Variación promedio histórica",
+        value=formato_numero_argentino(
+            df_base[df_base["Escenario"] == "historico"]["Var_Tasa"].mean(), 2
+        ) + " /año",
+        fuente_key="Variacion_Tasa_Historica",
+    )
+with c2:
+    kpi_con_fuente(
+        label="Variación promedio proyectada (base)",
+        value=formato_numero_argentino(
+            df_base[df_base["Escenario"] == "base"]["Var_Tasa"].mean(), 2
+        ) + " /año",
+        fuente_key="Variacion_Tasa_Proyectada",
+    )
 
 fig_var = go.Figure()
 fig_var.add_trace(go.Bar(

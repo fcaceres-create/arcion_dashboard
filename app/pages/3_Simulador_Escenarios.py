@@ -28,6 +28,7 @@ from src.feature_engineering import (  # noqa: E402
 )
 from src.model import entrenar_y_seleccionar  # noqa: E402
 from src.projection import proyectar_features_completo  # noqa: E402
+from src.ui_components import kpi_con_fuente, leyenda_niveles  # noqa: E402
 from src.utils import formato_numero_argentino  # noqa: E402
 
 st.set_page_config(page_title="ARCION · Simulador", page_icon="🎛️", layout="wide")
@@ -160,20 +161,27 @@ prediccion_base = float(np.clip(modelo.predict(X_base)[0], 5, 40))
 # ---------------------------------------------------------------------
 st.subheader(f"📊 Resultados para {provincia} · {config.ANIO_FIN_PROYECCION}")
 
+leyenda_niveles()
 c1, c2, c3 = st.columns(3)
-c1.metric(
-    "Tasa proyectada (base)",
-    f"{formato_numero_argentino(prediccion_base, 2)} /1000",
-)
-c2.metric(
-    "Tasa simulada",
-    f"{formato_numero_argentino(prediccion_simulada, 2)} /1000",
-    f"{formato_numero_argentino(prediccion_simulada - prediccion_base, 2)}",
-)
-c3.metric(
-    "% cumplimiento OMS",
-    f"{formato_numero_argentino(prediccion_simulada / config.OMS_OPTIMO_X1000 * 100, 1)}%",
-)
+with c1:
+    kpi_con_fuente(
+        label="Tasa proyectada (base)",
+        value=f"{formato_numero_argentino(prediccion_base, 2)} /1000",
+        fuente_key="Tasa_Nacional_Proyectada",
+    )
+with c2:
+    kpi_con_fuente(
+        label="Tasa simulada",
+        value=f"{formato_numero_argentino(prediccion_simulada, 2)} /1000",
+        delta=f"{formato_numero_argentino(prediccion_simulada - prediccion_base, 2)}",
+        fuente_key="Tasa_Simulada",
+    )
+with c3:
+    kpi_con_fuente(
+        label="% cumplimiento OMS",
+        value=f"{formato_numero_argentino(prediccion_simulada / config.OMS_OPTIMO_X1000 * 100, 1)}%",
+        fuente_key="Pct_Cumplimiento_OMS",
+    )
 
 # Gráfico comparativo
 poblacion = float(fila_ajustada["Población_Total"].iloc[0])

@@ -17,6 +17,7 @@ RUTA_RAIZ = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(RUTA_RAIZ))
 
 from src import config  # noqa: E402
+from src.ui_components import kpi_con_fuente, leyenda_niveles  # noqa: E402
 from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 
 st.set_page_config(page_title="ARCION · Detalle Provincial", page_icon="📍", layout="wide")
@@ -56,17 +57,34 @@ if not fila_actual.empty and not fila_2030.empty:
     donantes_30 = int(fila_2030["Donantes_Anuales"].iloc[0])
     brecha_30 = int(fila_2030["Brecha_Donantes"].iloc[0])
 
+    leyenda_niveles()
     c1, c2, c3, c4 = st.columns(4)
-    c1.metric(f"Tasa {config.ANIO_FIN_HISTORICO}",
-              f"{formato_numero_argentino(tasa_act, 2)} /1000")
-    c2.metric(f"Tasa {config.ANIO_FIN_PROYECCION}",
-              f"{formato_numero_argentino(tasa_30, 2)} /1000",
-              f"{formato_numero_argentino(tasa_30 - tasa_act, 2)}")
-    c3.metric(f"Donantes {config.ANIO_FIN_PROYECCION}",
-              formato_numero_argentino(donantes_30, 0))
-    c4.metric("Brecha vs OMS",
-              formato_numero_argentino(brecha_30, 0),
-              delta_color="inverse")
+    with c1:
+        kpi_con_fuente(
+            label=f"Tasa {config.ANIO_FIN_HISTORICO}",
+            value=f"{formato_numero_argentino(tasa_act, 2)} /1000",
+            fuente_key="Tasa_Donacion_x1000",
+        )
+    with c2:
+        kpi_con_fuente(
+            label=f"Tasa {config.ANIO_FIN_PROYECCION}",
+            value=f"{formato_numero_argentino(tasa_30, 2)} /1000",
+            delta=f"{formato_numero_argentino(tasa_30 - tasa_act, 2)}",
+            fuente_key="Tasa_Nacional_Proyectada",
+        )
+    with c3:
+        kpi_con_fuente(
+            label=f"Donantes {config.ANIO_FIN_PROYECCION}",
+            value=formato_numero_argentino(donantes_30, 0),
+            fuente_key="Donantes_Anuales",
+        )
+    with c4:
+        kpi_con_fuente(
+            label="Brecha vs OMS",
+            value=formato_numero_argentino(brecha_30, 0),
+            delta_color="inverse",
+            fuente_key="Brecha_Donantes_OMS",
+        )
 
 st.markdown(f"**Región:** {df_prov['Region'].iloc[0]}")
 
