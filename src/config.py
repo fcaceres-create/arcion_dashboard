@@ -212,3 +212,186 @@ TIMEOUT_DESCARGA_GRANDE: int = 180  # segundos (CSVs de 5-10 MB)
 # verify=False con conocimiento explícito. Si en el futuro arreglan el
 # certificado, podemos volver a True. Documentado en docs/metodologia.md.
 VERIFICAR_SSL_DATOS_SALUD: bool = False
+
+# ---------------------------------------------------------------------
+# Catálogo de fuentes — trazabilidad por variable y KPI
+# ---------------------------------------------------------------------
+# Fuente única de verdad sobre el origen de cada dato que se muestra en
+# la UI. Permite renderizar un ícono de fiabilidad y un popover con el
+# detalle al lado de cada KPI/variable, alineado con la página
+# "Cobertura Fuentes" para defensa académica.
+#
+# Niveles de fiabilidad:
+#   "real"      🟢 — Dato observado, descargado de API oficial.
+#   "calibrado" 🟡 — Sintético pero con base/tendencia oficial (INDEC, EPH, OPS).
+#   "sintetico" 🔴 — 100 % sintético, sin fuente pública por jurisdicción.
+#   "modelo"    🤖 — Output del modelo ML entrenado sobre los anteriores.
+#   "estandar"  📏 — Constante normativa (OMS, etc.).
+#   "derivado"  🧮 — Cálculo determinístico sobre otros valores del catálogo.
+NIVELES_FIABILIDAD = {
+    "real":      {"icono": "✅", "etiqueta": "Real (API oficial)",        "color": "#16A34A"},
+    "calibrado": {"icono": "🟡", "etiqueta": "Sintético calibrado",       "color": "#F59E0B"},
+    "sintetico": {"icono": "🔴", "etiqueta": "100 % sintético",           "color": "#DC2626"},
+    "modelo":    {"icono": "🤖", "etiqueta": "Predicción del modelo ML",  "color": "#2563EB"},
+    "estandar":  {"icono": "📏", "etiqueta": "Estándar oficial",          "color": "#7C3AED"},
+    "derivado":  {"icono": "🧮", "etiqueta": "Cálculo derivado",          "color": "#0891B2"},
+}
+
+FUENTES_VARIABLES: dict[str, dict] = {
+    # ---------- Variables del dataset ----------
+    "Tasa_Donacion_x1000": {
+        "nivel": "sintetico",
+        "descripcion": "Tasa de donación de sangre por cada 1.000 habitantes (target del modelo).",
+        "origen": "Calibrada a la línea base nacional ~19/1.000 (OPS 2023). "
+                  "Las variaciones provinciales se generan sintéticamente porque "
+                  "no hay tasas publicadas por jurisdicción.",
+        "dataset": None,
+        "url_dataset": None,
+        "url_referencia": "https://www.paho.org/es/temas/sangre-segura",
+        "anio_referencia": 2023,
+        "limitacion": "Pendiente de reemplazo cuando el Plan Nacional de "
+                      "Sangre publique tasas oficiales por provincia.",
+    },
+    "Donantes_Anuales": {
+        "nivel": "sintetico",
+        "descripcion": "Cantidad absoluta de donantes voluntarios por año.",
+        "origen": "Derivado de Tasa_Donacion_x1000 × Población_Total / 1000.",
+        "url_referencia": "https://www.paho.org/es/temas/sangre-segura",
+        "limitacion": "Hereda la limitación de la tasa sintética.",
+    },
+    "Centros_Hemoterapia": {
+        "nivel": "real",
+        "descripcion": "Cantidad de centros de hemoterapia por jurisdicción.",
+        "origen": "Registro Federal de Establecimientos de Salud (REFES).",
+        "dataset": "listado-establecimientos-de-salud-asentados-en-el-registro-federal-refes",
+        "url_dataset": "https://datos.salud.gob.ar/dataset/listado-establecimientos-de-salud-asentados-en-el-registro-federal-refes",
+        "url_referencia": "https://datos.salud.gob.ar",
+        "cobertura": "54,7 % (filas reales sobre total panel)",
+    },
+    "Casos_Dengue_Anual": {
+        "nivel": "real",
+        "descripcion": "Casos confirmados de dengue por año/jurisdicción.",
+        "origen": "Sistema de Vigilancia Epidemiológica del Min. Salud.",
+        "dataset": "vigilancia-de-dengue-y-zika",
+        "url_dataset": "https://datos.salud.gob.ar/dataset/vigilancia-de-dengue-y-zika",
+        "cobertura": "31,8 %",
+    },
+    "Casos_VIH_Anual": {
+        "nivel": "real",
+        "descripcion": "Casos notificados de VIH por año/jurisdicción.",
+        "origen": "Plan Nacional VIH/SIDA — Min. Salud.",
+        "dataset": "notificacion-de-casos-de-vih",
+        "url_dataset": "https://datos.salud.gob.ar/dataset/notificacion-de-casos-de-vih",
+        "cobertura": "62,5 %",
+    },
+    "Medicos": {
+        "nivel": "real",
+        "descripcion": "Cantidad de médicos por jurisdicción.",
+        "origen": "MinSalud — RRHH (snapshot 2019, dataset discontinuado).",
+        "dataset": "profesionales-medicos-por-jurisdiccion",
+        "url_dataset": "https://datos.salud.gob.ar/dataset/profesionales-medicos-por-jurisdiccion",
+        "limitacion": "El dataset oficial fue discontinuado en 2019.",
+        "cobertura": "100 % (snapshot replicado año a año)",
+    },
+    "Defunciones_Anuales": {
+        "nivel": "real",
+        "descripcion": "Defunciones registradas por año/jurisdicción.",
+        "origen": "Estadísticas Vitales — Min. Salud.",
+        "dataset": "serie-historica-de-defunciones-ocurridas-en-argentina-por-jurisdiccion",
+        "url_dataset": "https://datos.salud.gob.ar/dataset/serie-historica-de-defunciones-ocurridas-en-argentina-por-jurisdiccion",
+        "cobertura": "62,5 %",
+    },
+    "Nacimientos_Anuales": {
+        "nivel": "real",
+        "descripcion": "Nacimientos registrados por año/jurisdicción.",
+        "origen": "Estadísticas Vitales — Min. Salud.",
+        "dataset": "serie-historica-de-nacimientos-ocurridos-en-argentina-por-jurisdiccion",
+        "url_dataset": "https://datos.salud.gob.ar/dataset/serie-historica-de-nacimientos-ocurridos-en-argentina-por-jurisdiccion",
+        "cobertura": "62,5 %",
+    },
+    "Población_Total": {
+        "nivel": "calibrado",
+        "descripcion": "Población total proyectada por jurisdicción y año.",
+        "origen": "Censo INDEC 2022 + tasa oficial de crecimiento 0,9 % anual "
+                  "(proyecciones INDEC) con variabilidad gaussiana ±0,3 %.",
+        "url_referencia": "https://www.indec.gob.ar/indec/web/Nivel4-Tema-2-41-165",
+        "anio_referencia": 2022,
+    },
+    "Población_18_65": {
+        "nivel": "calibrado",
+        "descripcion": "Población en edad de donar (18 a 65 años).",
+        "origen": "Derivado de Población_Total × ~64 % (ratio EPH-INDEC).",
+        "url_referencia": "https://www.indec.gob.ar/indec/web/Institucional-Indec-InformesTecnicos-31",
+    },
+    "Pct_Educacion_Superior": {
+        "nivel": "calibrado",
+        "descripcion": "% de población con educación superior completa.",
+        "origen": "Promedios reales EPH-INDEC por región (Centro ~22 %, "
+                  "NOA ~15 %, NEA ~13 %) con variabilidad ±2 %.",
+        "url_referencia": "https://www.indec.gob.ar/indec/web/Institucional-Indec-InformesTecnicos-31",
+    },
+    "Indice_Ingreso_Promedio": {
+        "nivel": "calibrado",
+        "descripcion": "Índice relativo de ingreso promedio por región.",
+        "origen": "Calibrado a EPH-INDEC por región, generado por código.",
+        "url_referencia": "https://www.indec.gob.ar/indec/web/Institucional-Indec-InformesTecnicos-31",
+    },
+    "Tasa_Desempleo": {
+        "nivel": "calibrado",
+        "descripcion": "Tasa de desempleo (% de la PEA).",
+        "origen": "Generado por región con pico real COVID 2020-21 calibrado a EPH-INDEC.",
+        "url_referencia": "https://www.indec.gob.ar/indec/web/Institucional-Indec-InformesTecnicos-31",
+    },
+    "Pct_Cobertura_Salud": {
+        "nivel": "calibrado",
+        "descripcion": "% de población con cobertura de salud.",
+        "origen": "Generado por región, calibrado a EPH-INDEC.",
+        "url_referencia": "https://www.indec.gob.ar/indec/web/Institucional-Indec-InformesTecnicos-31",
+    },
+    "Campañas_Donacion_Anuales": {
+        "nivel": "sintetico",
+        "descripcion": "Cantidad de campañas de donación por año.",
+        "origen": "Inventado proporcional a la población — no hay fuente pública.",
+        "limitacion": "Pasará a 🟢 Real cuando el Plan Nacional de Sangre lo publique.",
+    },
+
+    # ---------- KPIs derivados / agregados nacionales ----------
+    "Tasa_Nacional_Actual": {
+        "nivel": "sintetico",
+        "descripcion": "Tasa de donación nacional del último año histórico.",
+        "origen": "Promedio ponderado por población de Tasa_Donacion_x1000 "
+                  "del último año disponible.",
+        "depende_de": ["Tasa_Donacion_x1000", "Población_Total"],
+        "limitacion": "Hereda la limitación del target sintético.",
+    },
+    "Tasa_Nacional_Proyectada": {
+        "nivel": "modelo",
+        "descripcion": "Tasa de donación nacional proyectada al horizonte 2030.",
+        "origen": "Predicción del modelo ML (Random Forest / Gradient Boosting "
+                  "seleccionado por validación cruzada k=5) sobre features "
+                  "extrapoladas de Inicio_2015 a 2030.",
+        "depende_de": ["Tasa_Donacion_x1000", "Población_Total",
+                        "Centros_Hemoterapia", "Pct_Educacion_Superior"],
+        "limitacion": "Sujeto al MAE-CV del modelo y a la calidad del target sintético.",
+    },
+    "OMS_Optimo": {
+        "nivel": "estandar",
+        "descripcion": "Meta OMS de donaciones por 1.000 habitantes (30/1.000).",
+        "origen": "Recomendación de la Organización Mundial de la Salud para "
+                  "garantizar autosuficiencia en sangre segura.",
+        "url_referencia": "https://www.who.int/health-topics/blood-supply",
+        "valor_constante": OMS_OPTIMO_X1000,
+    },
+    "Brecha_OMS": {
+        "nivel": "derivado",
+        "descripcion": "Diferencia entre la meta OMS y la tasa proyectada.",
+        "origen": "OMS_OPTIMO_X1000 (30) − Tasa_Nacional_Proyectada.",
+        "depende_de": ["OMS_Optimo", "Tasa_Nacional_Proyectada"],
+    },
+    "Pct_Cumplimiento_OMS": {
+        "nivel": "derivado",
+        "descripcion": "% de cumplimiento de la meta OMS al horizonte 2030.",
+        "origen": "Tasa_Nacional_Proyectada / OMS_OPTIMO_X1000 × 100.",
+        "depende_de": ["OMS_Optimo", "Tasa_Nacional_Proyectada"],
+    },
+}

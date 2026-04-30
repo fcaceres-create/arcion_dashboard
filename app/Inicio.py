@@ -21,6 +21,7 @@ RUTA_RAIZ = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(RUTA_RAIZ))
 
 from src import config  # noqa: E402
+from src.ui_components import kpi_con_fuente, leyenda_niveles  # noqa: E402
 from src.utils import formato_numero_argentino, formato_porcentaje  # noqa: E402
 
 # ---------------------------------------------------------------------
@@ -95,6 +96,7 @@ st.sidebar.caption(
 # KPIs nacionales
 # ---------------------------------------------------------------------
 st.subheader("📊 KPIs nacionales")
+leyenda_niveles()
 
 # Tasa actual (último año histórico)
 fila_actual = df_nac[
@@ -117,24 +119,32 @@ brecha_oms = config.OMS_OPTIMO_X1000 - tasa_2030
 cumplimiento = tasa_2030 / config.OMS_OPTIMO_X1000
 
 c1, c2, c3, c4 = st.columns(4)
-c1.metric(
-    f"Tasa actual ({config.ANIO_FIN_HISTORICO})",
-    f"{formato_numero_argentino(tasa_actual, 2)} / 1000",
-)
-c2.metric(
-    f"Proyección {config.ANIO_FIN_PROYECCION}",
-    f"{formato_numero_argentino(tasa_2030, 2)} / 1000",
-    f"{formato_numero_argentino(tasa_2030 - tasa_actual, 2)}",
-)
-c3.metric(
-    "Brecha OMS",
-    f"{formato_numero_argentino(brecha_oms, 2)} / 1000",
-    delta_color="inverse",
-)
-c4.metric(
-    "% cumplimiento OMS",
-    formato_porcentaje(cumplimiento, 1),
-)
+with c1:
+    kpi_con_fuente(
+        label=f"Tasa actual ({config.ANIO_FIN_HISTORICO})",
+        value=f"{formato_numero_argentino(tasa_actual, 2)} / 1000",
+        fuente_key="Tasa_Nacional_Actual",
+    )
+with c2:
+    kpi_con_fuente(
+        label=f"Proyección {config.ANIO_FIN_PROYECCION}",
+        value=f"{formato_numero_argentino(tasa_2030, 2)} / 1000",
+        delta=f"{formato_numero_argentino(tasa_2030 - tasa_actual, 2)}",
+        fuente_key="Tasa_Nacional_Proyectada",
+    )
+with c3:
+    kpi_con_fuente(
+        label="Brecha OMS",
+        value=f"{formato_numero_argentino(brecha_oms, 2)} / 1000",
+        delta_color="inverse",
+        fuente_key="Brecha_OMS",
+    )
+with c4:
+    kpi_con_fuente(
+        label="% cumplimiento OMS",
+        value=formato_porcentaje(cumplimiento, 1),
+        fuente_key="Pct_Cumplimiento_OMS",
+    )
 
 # ---------------------------------------------------------------------
 # Gráfico de escenarios + línea OMS
